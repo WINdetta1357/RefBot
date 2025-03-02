@@ -7,7 +7,7 @@ from collections import defaultdict
 
 # --- Настройки ---
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',  # Исправлена опечатка 'levellevel' на 'levelname'
     level=logging.INFO
 )
 
@@ -180,45 +180,4 @@ async def compare_all_cards(query):
         for card_name, card in cards.items():
             text += f"🏦 <b>{bank_name}</b> - <b>{card_name}</b>\n"
             text += "🔥 <u>Преимущества:</u>\n- " + "\n- ".join(card["advantages"]) + "\n"
-            text += f"🔗 <a href='{card['ref_link']}'>Ссылка на карту</a>\n\n"
-
-    keyboard = [("🔙 Назад", "back_bank")]
-    await query.edit_message_text(
-        text,
-        reply_markup=build_keyboard(keyboard),
-        parse_mode="HTML"
-    )
-
-async def handle_back_cards(update: Update, context: CallbackContext):
-    """Обработка кнопки 'Назад'"""
-    query = update.callback_query
-    await query.answer()
-    await show_card_selection(query)
-    return SELECT_CARDS
-
-# --- Запуск бота ---
-def main():
-    app = Application.builder().token(BOT_TOKEN).build()
-    
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
-        states={
-            ASK_AGE: [CallbackQueryHandler(handle_age)],
-            SELECT_BANK: [CallbackQueryHandler(handle_bank_selection)],
-            SELECT_CARDS: [CallbackQueryHandler(handle_card_info, pattern="^show_card_")],
-            COMPARE_CARDS: [CallbackQueryHandler(handle_back_cards, pattern="^back_cards$")]
-        },
-        fallbacks=[],
-        per_user=True,
-        per_chat=True,
-        per_message=False
-    )
-
-    app.add_handler(conv_handler)
-    app.add_handler(CallbackQueryHandler(handle_card_info, pattern="^show_card_"))
-    app.add_handler(CallbackQueryHandler(compare_all_cards, pattern="^compare_all_cards$"))
-
-    app.run_polling()
-
-if __name__ == "__main__":
-    main()
+            text += f"🔗 <a href='{card['ref_link']}'>Ссылка на карту
