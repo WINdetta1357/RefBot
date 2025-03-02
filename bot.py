@@ -12,7 +12,7 @@ logging.basicConfig(
 
 # Загрузка переменных окружения
 load_dotenv()
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8105012250:AAFmOW45SKDGrn0pqIFvSVhQv3uwodCMKXs")  # Токен бота
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8105012250:AAFmOW45SKDGrn0pqIFvSVhQv3uwodCMKXs")
 
 # --- Данные о картах ---
 banks = {
@@ -50,7 +50,8 @@ async def start(update: Update, context: CallbackContext):
     ]
     await update.message.reply_text(
         "👋 Привет! Я твой бот. Выбери свой возраст:",
-        reply_markup=InlineKeyboardMarkup(keyboard))
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
     return ASK_AGE
 
 async def handle_age(update: Update, context: CallbackContext):
@@ -59,13 +60,11 @@ async def handle_age(update: Update, context: CallbackContext):
     await query.answer()
     chat_id = query.message.chat_id
 
-    # Сохраняем возраст
     if query.data == "age_14_17":
         user_age[chat_id] = 14
     else:
         user_age[chat_id] = 18
 
-    # Показываем главное меню
     await show_main_menu(query)
     return ConversationHandler.END
 
@@ -78,7 +77,8 @@ async def show_main_menu(query):
     ]
     await query.edit_message_text(
         "🎮 Выбери раздел:",
-        reply_markup=InlineKeyboardMarkup(keyboard))
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
 async def button_handler(update: Update, context: CallbackContext):
     """Обработка нажатия кнопок"""
@@ -87,12 +87,10 @@ async def button_handler(update: Update, context: CallbackContext):
 
     try:
         if query.data == "category_banks":
-            # Показываем список банков
             keyboard = [[InlineKeyboardButton(bank, callback_data=f"bank_{bank}")] for bank in banks]
             await query.edit_message_text("🏦 Выбери банк:", reply_markup=InlineKeyboardMarkup(keyboard))
 
         elif query.data.startswith("bank_"):
-            # Показываем карты выбранного банка
             bank_name = query.data.split("_")[1]
             chat_id = query.message.chat_id
             keyboard = []
@@ -103,7 +101,6 @@ async def button_handler(update: Update, context: CallbackContext):
             await query.edit_message_text(f"📇 Карты {bank_name}:", reply_markup=InlineKeyboardMarkup(keyboard))
 
         elif query.data == "compare_cards":
-            # Сравнение всех карт
             text = "🔍 **Сравнение условий:**\n\n"
             for bank in banks.values():
                 for card_name, data in bank.items():
@@ -111,7 +108,6 @@ async def button_handler(update: Update, context: CallbackContext):
             await query.edit_message_text(text, parse_mode="Markdown")
 
         elif query.data == "promo":
-            # Показываем акции
             text = "🎁 **Акции и спецпредложения:**\n\n"
             for bank in banks.values():
                 for card in bank.values():
@@ -131,17 +127,18 @@ def main():
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={ASK_AGE: [CallbackQueryHandler(handle_age)]},
-        fallbacks=[]
+        fallbacks=[],
+        per_message=True  # Важное исправление для обработки callback
     )
     app.add_handler(conv_handler)
     app.add_handler(CallbackQueryHandler(button_handler))
 
-    # Для облачного хостинга (Railway/Heroku)
+    # Для Railway
     app.run_webhook(
         listen="0.0.0.0",
         port=int(os.environ.get("PORT", 5000)),
         url_path=BOT_TOKEN,
-        webhook_url=f"https://ваш-домен.xyz/{BOT_TOKEN}"  # Замените на реальный URL!
+        webhook_url=f"https://YOUR_RAILWAY_PROJECT.up.railway.app/{BOT_TOKEN}"  # Замените на ваш домен!
     )
 
 if __name__ == "__main__":
