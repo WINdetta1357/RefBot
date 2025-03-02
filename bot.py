@@ -7,7 +7,7 @@ from collections import defaultdict
 
 # --- Настройки ---
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - %(name)s - %(levellevel)s - %(message)s',
     level=logging.INFO
 )
 
@@ -160,12 +160,14 @@ async def handle_card_info(update: Update, context: CallbackContext):
 
     text = f"🏦 <b>{selected_bank}</b> - <b>{card_name}</b>\n\n"
     text += "🔥 <u>Преимущества:</u>\n- " + "\n- ".join(card["advantages"]) + "\n\n"
-    text += f"🔗 <a href='{card['ref_link']}'>Оформить карту</a>"
 
-    keyboard = [("🔙 Назад", "back_cards")]
+    keyboard = [
+        [InlineKeyboardButton("Оформить на лучших условиях", url=card['ref_link'])],
+        [InlineKeyboardButton("🔙 Назад", callback_data="back_cards")]
+    ]
     await query.edit_message_text(
         text,
-        reply_markup=build_keyboard(keyboard),
+        reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
 
