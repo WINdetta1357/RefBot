@@ -261,7 +261,7 @@ async def compare_selected_cards(query):
 
 
 
-# --- Запуск бота ---
+
 def main():
     """Запуск бота."""
     app = Application.builder().token(BOT_TOKEN).build()
@@ -288,5 +288,6 @@ def main():
         webhook_url=f"https://web-production-c568.up.railway.app/{BOT_TOKEN}"
     )
 
-if name == "__main__":
+# Исправленная строка
+if __name__ == "__main__":
     main()
