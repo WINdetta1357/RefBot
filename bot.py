@@ -273,7 +273,7 @@ def main():
             SELECT_CARDS: [CallbackQueryHandler(handle_card_selection)]
         },
         fallbacks=[],
-        per_message=True  # Включаем отслеживание для каждого сообщения
+        per_message=False  # Отключаем отслеживание для каждого сообщения
     )
     
     app.add_handler(conv_handler)
@@ -288,5 +288,5 @@ def main():
         webhook_url=f"https://web-production-c568.up.railway.app/{BOT_TOKEN}"
     )
 
-if __name__ == "__main__":
+if name == "__main__":
     main()
