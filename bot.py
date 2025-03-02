@@ -273,9 +273,7 @@ def main():
             SELECT_CARDS: [CallbackQueryHandler(handle_card_selection)]
         },
         fallbacks=[],
-        per_user=True,  # Отслеживание по пользователю
-        per_chat=True,  # Отслеживание по чату
-        per_message=False  # Отключаем отслеживание для каждого сообщения
+        per_message=True  # Включаем отслеживание для каждого сообщения
     )
     
     app.add_handler(conv_handler)
