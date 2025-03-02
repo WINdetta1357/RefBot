@@ -233,5 +233,3 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_back_cards, pattern="^back_cards$"))
     app.add_handler(CallbackQueryHandler(handle_back_bank, pattern="^back_bank$"))
 
-    # Настройка вебхуков
-    app.on
