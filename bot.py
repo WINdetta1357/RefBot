@@ -153,7 +153,7 @@ async def profile(update: Update, context: CallbackContext):
     
     text = f"👤 Ваш профиль:\n\n"
     text += f"⭐ Баллы: {data['points']}\n"
-    text += f"🏆 Достижения: {len(data['achievements']}/{len(ACHIEVEMENTS)}\n"
+    text += f"🏆 Достижения: {len(data['achievements'])}/{len(ACHIEVEMENTS)}\n"  # Исправлено
     text += f"🤝 Приглашено друзей: {data['invited']}\n\n"
     
     if data['achievements']:
