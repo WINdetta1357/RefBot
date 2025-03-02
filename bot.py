@@ -99,6 +99,7 @@ async def show_bank_selection(query):
     user_id = query.from_user.id
 
     keyboard = [(bank_name, f"select_bank_{bank_name}") for bank_name in banks.keys()]
+    keyboard.append(("🔍 Сравнить все карты", "compare_all_cards"))
     keyboard.append(("🔙 Назад", "back_age"))
 
     await query.edit_message_text(
@@ -121,6 +122,10 @@ async def handle_bank_selection(update: Update, context: CallbackContext):
         await show_card_selection(query)
         return SELECT_CARDS
 
+    elif query.data == "compare_all_cards":
+        await compare_all_cards(query)
+        return COMPARE_CARDS
+
     elif query.data == "back_age":
         await start(update, context)
         return ASK_AGE
@@ -133,60 +138,29 @@ async def show_card_selection(query):
     keyboard = []
     for card_name, data in banks[selected_bank].items():
         if user_data[user_id]['age'] >= data['age_limit']:
-            is_selected = card_name in user_data[user_id]['selected_cards']
-            text = f"{'✅ ' if is_selected else ''}{card_name}"
-            keyboard.append((text, f"select_card_{card_name}"))
+            text = card_name
+            keyboard.append((text, f"show_card_{card_name}"))
 
-    keyboard.append(("🔍 Сравнить выбранные", "compare_selected"))
     keyboard.append(("🔙 Назад", "back_bank"))
 
     await query.edit_message_text(
-        f"🔍 Выбери карты в банке {selected_bank}:",
+        f"🔍 Выбери карту в банке {selected_bank}:",
         reply_markup=build_keyboard(keyboard)
     )
 
-async def handle_card_selection(update: Update, context: CallbackContext):
-    """Обработка выбора карты"""
+async def handle_card_info(update: Update, context: CallbackContext):
+    """Показать информацию о карте и кнопку для оформления"""
     query = update.callback_query
     await query.answer()
 
     user_id = query.from_user.id
+    selected_bank = user_data[user_id]['selected_bank']
+    card_name = query.data.split("_", 2)[2]
+    card = banks[selected_bank][card_name]
 
-    if query.data.startswith("select_card_"):
-        card_name = query.data.split("_", 2)[2]
-        
-        if card_name in user_data[user_id]['selected_cards']:
-            user_data[user_id]['selected_cards'].remove(card_name)
-        else:
-            user_data[user_id]['selected_cards'].append(card_name)
-
-        await show_card_selection(query)
-
-    elif query.data == "compare_selected":
-        await compare_selected_cards(query)
-        return COMPARE_CARDS
-
-    elif query.data == "back_bank":
-        await show_bank_selection(query)
-        return SELECT_BANK
-
-async def compare_selected_cards(query):
-    """Сравнение карт"""
-    user_id = query.from_user.id
-    selected = user_data[user_id]['selected_cards']
-
-    if not selected:
-        await query.edit_message_text("❌ Выберите карты для сравнения!")
-        return
-
-    text = "🔍 <b>Сравнение карт:</b>\n\n"
-    for card_name in selected:
-        for bank_name, cards in banks.items():
-            if card_name in cards:
-                data = cards[card_name]
-                text += f"🏦 <b>{bank_name}</b> - <b>{card_name}</b>\n"
-                text += "🔥 <u>Преимущества:</u>\n- " + "\n- ".join(data["advantages"]) + "\n"
-                text += f"🔗 <a href='{data['ref_link']}'>Ссылка на карту</a>\n\n"
+    text = f"🏦 <b>{selected_bank}</b> - <b>{card_name}</b>\n\n"
+    text += "🔥 <u>Преимущества:</u>\n- " + "\n- ".join(card["advantages"]) + "\n\n"
+    text += f"🔗 <a href='{card['ref_link']}'>Оформить карту</a>"
 
     keyboard = [("🔙 Назад", "back_cards")]
     await query.edit_message_text(
@@ -195,8 +169,26 @@ async def compare_selected_cards(query):
         parse_mode="HTML"
     )
 
+async def compare_all_cards(query):
+    """Сравнение всех карт"""
+    user_id = query.from_user.id
+    text = "🔍 <b>Сравнение всех карт:</b>\n\n"
+
+    for bank_name, cards in banks.items():
+        for card_name, card in cards.items():
+            text += f"🏦 <b>{bank_name}</b> - <b>{card_name}</b>\n"
+            text += "🔥 <u>Преимущества:</u>\n- " + "\n- ".join(card["advantages"]) + "\n"
+            text += f"🔗 <a href='{card['ref_link']}'>Ссылка на карту</a>\n\n"
+
+    keyboard = [("🔙 Назад", "back_bank")]
+    await query.edit_message_text(
+        text,
+        reply_markup=build_keyboard(keyboard),
+        parse_mode="HTML"
+    )
+
 async def handle_back_cards(update: Update, context: CallbackContext):
-    """Обработка кнопки 'Назад' в сравнении карт"""
+    """Обработка кнопки 'Назад'"""
     query = update.callback_query
     await query.answer()
     await show_card_selection(query)
@@ -211,7 +203,7 @@ def main():
         states={
             ASK_AGE: [CallbackQueryHandler(handle_age)],
             SELECT_BANK: [CallbackQueryHandler(handle_bank_selection)],
-            SELECT_CARDS: [CallbackQueryHandler(handle_card_selection)],
+            SELECT_CARDS: [CallbackQueryHandler(handle_card_info, pattern="^show_card_")],
             COMPARE_CARDS: [CallbackQueryHandler(handle_back_cards, pattern="^back_cards$")]
         },
         fallbacks=[],
@@ -221,8 +213,8 @@ def main():
     )
 
     app.add_handler(conv_handler)
-    app.add_handler(CallbackQueryHandler(handle_card_selection, pattern="^select_card_"))
-    app.add_handler(CallbackQueryHandler(compare_selected_cards, pattern="^compare_selected$"))
+    app.add_handler(CallbackQueryHandler(handle_card_info, pattern="^show_card_"))
+    app.add_handler(CallbackQueryHandler(compare_all_cards, pattern="^compare_all_cards$"))
 
     app.run_polling()
 
