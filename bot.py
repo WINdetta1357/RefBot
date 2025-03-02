@@ -273,10 +273,9 @@ def main():
             SELECT_CARDS: [CallbackQueryHandler(handle_card_selection)]
         },
         fallbacks=[],
-        # Явно задаем параметры для подавления предупреждения
-        per_user=True,
-        per_chat=True,
-        per_message=False  # По умолчанию, но указываем явно
+        per_user=True,  # Отслеживание по пользователю
+        per_chat=True,  # Отслеживание по чату
+        per_message=False  # Отключаем отслеживание для каждого сообщения
     )
     
     app.add_handler(conv_handler)
