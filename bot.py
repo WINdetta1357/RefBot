@@ -99,7 +99,7 @@ async def start(update: Update, context: CallbackContext):
             await update_achievements(referrer_id, context)
     
     keyboard = [
-        [InlineKeyboardButton("14-17 лет", callback_data="age_14_17"),
+        [InlineKeyboardButton("14-17 лет", callback_data="age_14_17")],
         [InlineKeyboardButton("18+ лет", callback_data="age_18_plus")]
     ]
     await update.message.reply_text(
