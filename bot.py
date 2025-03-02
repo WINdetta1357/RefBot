@@ -259,8 +259,9 @@ async def compare_selected_cards(query):
         parse_mode="HTML"
     )
 
-# --- Запуск бота ---
 
+
+# --- Запуск бота ---
 def main():
     """Запуск бота."""
     app = Application.builder().token(BOT_TOKEN).build()
@@ -272,11 +273,23 @@ def main():
             SELECT_CARDS: [CallbackQueryHandler(handle_card_selection)]
         },
         fallbacks=[],
-        # per_message=True УДАЛЕНО!
+        # Явно задаем параметры для подавления предупреждения
+        per_user=True,
+        per_chat=True,
+        per_message=False  # По умолчанию, но указываем явно
     )
     
     app.add_handler(conv_handler)
-    # ... (остальные обработчики без изменений)
+    app.add_handler(CallbackQueryHandler(profile, pattern="^profile$"))
+    app.add_handler(CallbackQueryHandler(show_promo, pattern="^promo$"))
+    
+    # Для Railway
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.environ.get("PORT", 5000)),
+        url_path=BOT_TOKEN,
+        webhook_url=f"https://web-production-c568.up.railway.app/{BOT_TOKEN}"
+    )
 
 if __name__ == "__main__":
     main()
