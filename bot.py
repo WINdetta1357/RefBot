@@ -4,7 +4,6 @@ import logging
 import os
 from dotenv import load_dotenv
 from collections import defaultdict
-from aiohttp import web
 
 # --- Настройки ---
 logging.basicConfig(
@@ -14,7 +13,6 @@ logging.basicConfig(
 
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL", "YOUR_WEBHOOK_URL")  # URL для вебхуков (доменное имя)
 
 # --- Данные о банках и картах ---
 banks = {
@@ -198,13 +196,29 @@ async def handle_back_cards(update: Update, context: CallbackContext):
     await show_card_selection(query)
     return SELECT_CARDS
 
-async def handle_back_bank(update: Update, context: CallbackContext):
-    """Обработка кнопки 'Назад'"""
-    query = update.callback_query
-    await query.answer()
-    await show_bank_selection(query)
-    return SELECT_BANK
+# --- Запуск бота ---
+def main():
+    app = Application.builder().token(BOT_TOKEN).build()
+    
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('start', start)],
+        states={
+            ASK_AGE: [CallbackQueryHandler(handle_age)],
+            SELECT_BANK: [CallbackQueryHandler(handle_bank_selection)],
+            SELECT_CARDS: [CallbackQueryHandler(handle_card_info, pattern="^show_card_")],
+            COMPARE_CARDS: [CallbackQueryHandler(handle_back_cards, pattern="^back_cards$")]
+        },
+        fallbacks=[],
+        per_user=True,
+        per_chat=True,
+        per_message=False
+    )
 
-# --- Настройка вебхуков ---
-async def set_webhook(app: Application):
-    await app.bot.set_webhook
+    app.add_handler(conv_handler)
+    app.add_handler(CallbackQueryHandler(handle_card_info, pattern="^show_card_"))
+    app.add_handler(CallbackQueryHandler(compare_all_cards, pattern="^compare_all_cards$"))
+
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
