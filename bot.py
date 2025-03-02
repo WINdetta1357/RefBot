@@ -12,7 +12,7 @@ logging.basicConfig(
 )
 
 load_dotenv()
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8105012250:AAFmOW45SKDGrn0pqIFvSVhQv3uwodCMKXs")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN")
 
 # --- Данные о картах ---
 banks = {
@@ -64,6 +64,7 @@ ACHIEVEMENTS = {
 
 # --- Вспомогательные функции ---
 async def update_achievements(user_id, context):
+    """Проверяет и обновляет достижения пользователя."""
     achievements = []
     for ach_id, ach in ACHIEVEMENTS.items():
         if ach_id not in user_data[user_id]['achievements'] and ach['check'](user_data[user_id]):
@@ -77,16 +78,27 @@ async def update_achievements(user_id, context):
         )
 
 def build_keyboard(buttons, back_button=None):
+    """Создаёт инлайн-клавиатуру из списка кнопок."""
     keyboard = []
-    for row in buttons:
-        keyboard.append([InlineKeyboardButton(btn[0], callback_data=btn[1])] if isinstance(row, tuple) else [InlineKeyboardButton(row, callback_data=row)])
+    for button_row in buttons:
+        row = []
+        for btn in button_row:
+            if isinstance(btn, tuple):
+                # Кортеж (текст, callback_data)
+                row.append(InlineKeyboardButton(btn[0], callback_data=btn[1]))
+            else:
+                # Простая строка
+                row.append(InlineKeyboardButton(btn, callback_data=btn))
+        keyboard.append(row)
+    
     if back_button:
         keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data=back_button)])
+    
     return InlineKeyboardMarkup(keyboard)
 
 # --- Основные обработчики ---
 async def start(update: Update, context: CallbackContext):
-    """Запуск бота с реферальной системой"""
+    """Запуск бота с реферальной системой."""
     args = context.args
     user_id = update.effective_user.id
     
@@ -99,17 +111,17 @@ async def start(update: Update, context: CallbackContext):
             await update_achievements(referrer_id, context)
     
     keyboard = [
-        [InlineKeyboardButton("14-17 лет", callback_data="age_14_17")],
-        [InlineKeyboardButton("18+ лет", callback_data="age_18_plus")]
+        [("14-17 лет", "age_14_17")],
+        [("18+ лет", "age_18_plus")]
     ]
     await update.message.reply_text(
         "👋 Привет! Я помогу тебе выбрать лучшую банковскую карту!\nВыбери свой возраст:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=build_keyboard(keyboard)
     )
     return ASK_AGE
 
 async def handle_age(update: Update, context: CallbackContext):
-    """Обработка выбора возраста"""
+    """Обработка выбора возраста."""
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -121,12 +133,12 @@ async def handle_age(update: Update, context: CallbackContext):
     return ConversationHandler.END
 
 async def show_main_menu(query):
-    """Обновлённое главное меню"""
+    """Главное меню с кнопками."""
     buttons = [
-        ("🏦 Карты", "category_banks"),
-        ("🔍 Сравнить", "compare_cards"),
-        ("🎁 Акции", "promo"),
-        ("🏆 Профиль", "profile")
+        [("🏦 Карты", "category_banks")],
+        [("🔍 Сравнить", "compare_cards")],
+        [("🎁 Акции", "promo")],
+        [("🏆 Профиль", "profile")]
     ]
     await query.edit_message_text(
         "🎮 Главное меню:",
@@ -134,14 +146,14 @@ async def show_main_menu(query):
     )
 
 async def profile(update: Update, context: CallbackContext):
-    """Профиль пользователя с достижениями"""
+    """Профиль пользователя с достижениями."""
     query = update.callback_query
     user_id = query.from_user.id
     data = user_data[user_id]
     
     text = f"👤 Ваш профиль:\n\n"
     text += f"⭐ Баллы: {data['points']}\n"
-    text += f"🏆 Достижения: {len(data['achievements'])}/{len(ACHIEVEMENTS)}\n"
+    text += f"🏆 Достижения: {len(data['achievements']}/{len(ACHIEVEMENTS)}\n"
     text += f"🤝 Приглашено друзей: {data['invited']}\n\n"
     
     if data['achievements']:
@@ -150,130 +162,18 @@ async def profile(update: Update, context: CallbackContext):
         )
     
     buttons = [
-        ("🔗 Пригласить друзей", "invite"),
-        ("📈 Топ пользователей", "leaderboard"),
-        ("🔙 Назад", "back_main")
+        [("🔗 Пригласить друзей", "invite")],
+        [("📈 Топ пользователей", "leaderboard")],
+        [("🔙 Назад", "back_main")]
     ]
     await query.edit_message_text(
         text,
         reply_markup=build_keyboard(buttons)
     )
 
-async def invite(update: Update, context: CallbackContext):
-    """Реферальная система"""
-    query = update.callback_query
-    user_id = query.from_user.id
-    ref_link = f"https://t.me/{(await context.bot.get_me()).username}?start=ref_{user_id}"
-    
-    text = "🤝 Пригласи друзей и получай бонусы!\n\n"
-    text += f"Ваша реферальная ссылка:\n{ref_link}\n\n"
-    text += "За каждого приглашённого друга вы получаете:\n"
-    text += "✅ 50 баллов\n✅ +1 к достижениям\n✅ Бонусные возможности"
-    
-    await query.edit_message_text(
-        text,
-        reply_markup=build_keyboard([("🔙 Назад", "profile")])
-    )
-
-async def handle_card_selection(update: Update, context: CallbackContext):
-    """Обновлённый обработчик выбора карт"""
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    
-    if query.data.startswith("select_"):
-        _, bank_name, card_name = query.data.split("_", 2)
-        if card_name in user_data[user_id]['selected_cards']:
-            user_data[user_id]['selected_cards'].remove(card_name)
-        else:
-            user_data[user_id]['selected_cards'].append(card_name)
-            user_data[user_id]['points'] += 20  # Баллы за выбор карты
-            # Обновляем предпочтения
-            for card_type in banks[bank_name][card_name].get('card_type', []):
-                user_data[user_id]['preferences'][card_type] += 1
-            await update_achievements(user_id, context)
-        
-        await show_card_selection(query)
-    
-    elif query.data == "compare_selected":
-        await compare_selected_cards(query)
-        user_data[user_id]['points'] += 30  # Баллы за сравнение
-        await update_achievements(user_id, context)
-
-# --- Доработанный вывод карт с кнопками ---
-async def show_card_details(query, bank_name, card_name):
-    """Обновлённый вывод карты с кнопками"""
-    card = banks[bank_name][card_name]
-    text = f"<b>{card_name}</b>\n\n"
-    text += "📌 Основные преимущества:\n" + "\n".join(f"• {adv}" for adv in card['advantages'])
-    
-    buttons = [
-        [InlineKeyboardButton("🖇️ Оформить карту", url=card['ref_link'])],
-        [InlineKeyboardButton("⭐ Добавить в сравнение", callback_data=f"select_{bank_name}_{card_name}")]
-    ]
-    
-    if 'promo' in card:
-        buttons.append([InlineKeyboardButton("🎁 Акция", callback_data=f"promo_{bank_name}_{card_name}")])
-    
-    buttons.append([InlineKeyboardButton("🔙 Назад", callback_data=f"bank_{bank_name}")])
-    
-    await query.edit_message_text(
-        text,
-        reply_markup=InlineKeyboardMarkup(buttons),
-        parse_mode="HTML"
-    )
-
-# --- Новый обработчик акций ---
-async def show_promo(update: Update, context: CallbackContext):
-    """Улучшенный раздел акций"""
-    query = update.callback_query
-    text = "🎁 <b>Текущие акции:</b>\n\n"
-    
-    for bank, cards in banks.items():
-        for card, data in cards.items():
-            if 'promo' in data:
-                text += f"🔥 <b>{card}</b>\n"
-                text += "\n".join(f"• {p}" for p in data['promo']) + "\n\n"
-    
-    await query.edit_message_text(
-        text,
-        reply_markup=build_keyboard([("🔙 Назад", "back_main")]),
-        parse_mode="HTML"
-    )
-
-# --- Обновлённая система сравнения ---
-async def compare_selected_cards(query):
-    """Улучшенное сравнение карт"""
-    user_id = query.from_user.id
-    selected = user_data[user_id]['selected_cards']
-    
-    if not selected:
-        await query.edit_message_text("❌ Выберите карты для сравнения!")
-        return
-    
-    text = "🔍 <b>Сравнение карт:</b>\n\n"
-    for card_name in selected:
-        for bank, cards in banks.items():
-            if card_name in cards:
-                card = cards[card_name]
-                text += f"▫️ <b>{card_name}</b>\n"
-                text += f"Возраст: от {card['age_limit']}+ лет\n"
-                text += "Преимущества:\n" + "\n".join(f"• {adv}" for adv in card['advantages']) + "\n\n"
-    
-    # Персональная рекомендация
-    prefs = user_data[user_id]['preferences']
-    if prefs:
-        top_pref = max(prefs, key=prefs.get)
-        text += f"\n🌟 Вам подходят карты с акцентом на <b>{top_pref}</b>!"
-    
-    await query.edit_message_text(
-        text,
-        reply_markup=build_keyboard([("🔙 Назад", "compare_cards")]),
-        parse_mode="HTML"
-    )
-
+# --- Запуск бота ---
 def main():
-    """Запуск бота с новыми обработчиками"""
+    """Запуск бота."""
     app = Application.builder().token(BOT_TOKEN).build()
     
     conv_handler = ConversationHandler(
@@ -288,7 +188,6 @@ def main():
     
     app.add_handler(conv_handler)
     app.add_handler(CallbackQueryHandler(profile, pattern="profile"))
-    app.add_handler(CallbackQueryHandler(invite, pattern="invite"))
     app.add_handler(CallbackQueryHandler(show_promo, pattern="promo"))
     
     # Для Railway
