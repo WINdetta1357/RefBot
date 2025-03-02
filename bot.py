@@ -138,7 +138,7 @@ def main():
         entry_points=[CommandHandler('start', start)],
         states={ASK_AGE: [CallbackQueryHandler(handle_age)]},
         fallbacks=[],
-        per_message=True
+        per_message=False  # Исправлено на False
     )
     app.add_handler(conv_handler)
     app.add_handler(CallbackQueryHandler(button_handler))
