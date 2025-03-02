@@ -1,5 +1,5 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ConversationHandler
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ConversationHandler, CallbackContext
 import logging
 import os
 from dotenv import load_dotenv
@@ -7,7 +7,7 @@ from collections import defaultdict
 
 # --- Настройки ---
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - %(name)s - %(levellevelname)s - %(message)s',
     level=logging.INFO
 )
 
@@ -70,7 +70,7 @@ def build_keyboard(buttons):
     return InlineKeyboardMarkup([[InlineKeyboardButton(text, callback_data=callback)] for text, callback in buttons])
 
 # --- Обработчики ---
-async def start(update: Update, context: CallbackContext.DEFAULT_TYPE):
+async def start(update: Update, context: CallbackContext):
     """Запуск бота"""
     keyboard = [
         ("14-17 лет", "age_14_17"),
@@ -82,13 +82,13 @@ async def start(update: Update, context: CallbackContext.DEFAULT_TYPE):
     )
     return ASK_AGE
 
-async def handle_age(update: Update, context: CallbackContext.DEFAULT_TYPE):
+async def handle_age(update: Update, context: CallbackContext):
     """Обработка возраста"""
     query = update.callback_query
     await query.answer()
     
     user_id = query.from_user.id
-    user_data[user_id]['age'] = 14 если query.data == "age_14_17" иначе 18
+    user_data[user_id]['age'] = 14 if query.data == "age_14_17" else 18
 
     # Переход в меню выбора банка
     await show_bank_selection(query)
@@ -98,7 +98,7 @@ async def show_bank_selection(query):
     """Меню выбора банка"""
     user_id = query.from_user.id
 
-    keyboard = [(bank_name, f"select_bank_{bank_name}") для bank_name в banks.keys()]
+    keyboard = [(bank_name, f"select_bank_{bank_name}") for bank_name in banks.keys()]
     keyboard.append(("🔍 Сравнить все карты", "compare_all_cards"))
     keyboard.append(("🔙 Назад", "back_age"))
 
@@ -107,14 +107,14 @@ async def show_bank_selection(query):
         reply_markup=build_keyboard(keyboard)
     )
 
-async def handle_bank_selection(update: Update, context: CallbackContext.DEFAULT_TYPE):
+async def handle_bank_selection(update: Update, context: CallbackContext):
     """Обработка выбора банка"""
     query = update.callback_query
     await query.answer()
 
     user_id = query.from_user.id
 
-    если query.data.startswith("select_bank_"):
+    if query.data.startswith("select_bank_"):
         bank_name = query.data.split("_", 2)[2]
         user_data[user_id]['selected_bank'] = bank_name
 
@@ -136,8 +136,8 @@ async def show_card_selection(query):
     selected_bank = user_data[user_id]['selected_bank']
 
     keyboard = []
-    для card_name, data в banks[selected_bank].items():
-        если user_data[user_id]['age'] >= data['age_limit']:
+    for card_name, data in banks[selected_bank].items():
+        if user_data[user_id]['age'] >= data['age_limit']:
             text = card_name
             keyboard.append((text, f"show_card_{card_name}"))
 
@@ -148,7 +148,7 @@ async def show_card_selection(query):
         reply_markup=build_keyboard(keyboard)
     )
 
-async def handle_card_info(update: Update, context: CallbackContext.DEFAULT_TYPE):
+async def handle_card_info(update: Update, context: CallbackContext):
     """Показать информацию о карте и кнопку для оформления"""
     query = update.callback_query
     await query.answer()
@@ -172,7 +172,7 @@ async def handle_card_info(update: Update, context: CallbackContext.DEFAULT_TYPE
     )
     return SELECT_CARDS
 
-async def compare_all_cards(update: Update, context: CallbackContext.DEFAULT_TYPE):
+async def compare_all_cards(update: Update, context: CallbackContext):
     """Сравнение всех карт"""
     query = update.callback_query
     await query.answer()
@@ -180,8 +180,8 @@ async def compare_all_cards(update: Update, context: CallbackContext.DEFAULT_TYP
     user_id = query.from_user.id
     text = "🔍 <b>Сравнение всех карт:</b>\n\n"
 
-    для bank_name, cards в banks.items():
-        для card_name, card в cards.items():
+    for bank_name, cards in banks.items():
+        for card_name, card in cards.items():
             text += f"🏦 <b>{bank_name}</b> - <b>{card_name}</b>\n"
             text += "🔥 <u>Преимущества:</u>\n- " + "\n- ".join(card["advantages"]) + "\n"
             text += f"🔗 <a href='{card['ref_link']}'>Ссылка на карту</a>\n\n"
@@ -194,7 +194,7 @@ async def compare_all_cards(update: Update, context: CallbackContext.DEFAULT_TYP
     )
     return SELECT_BANK
 
-async def handle_back_cards(update: Update, context: CallbackContext.DEFAULT_TYPE):
+async def handle_back_cards(update: Update, context: CallbackContext):
     """Обработка кнопки 'Назад'"""
     query = update.callback_query
     await query.answer()
