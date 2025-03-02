@@ -171,6 +171,25 @@ async def profile(update: Update, context: CallbackContext):
         reply_markup=build_keyboard(buttons)
     )
 
+async def show_promo(update: Update, context: CallbackContext):
+    """Показывает акции и специальные предложения."""
+    query = update.callback_query
+    await query.answer()
+    
+    text = "🎁 <b>Специальные предложения:</b>\n\n"
+    for bank_name, cards in banks.items():
+        for card_name, data in cards.items():
+            if 'promo' in data:
+                text += f"🏦 <b>{bank_name}</b> - {card_name}:\n"
+                text += "\n".join(f"• {promo}" for promo in data['promo']) + "\n\n"
+    
+    buttons = [[InlineKeyboardButton("🔙 Назад", callback_data="back_main")]]
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode="HTML"
+    )
+
 async def handle_card_selection(update: Update, context: CallbackContext):
     """Обработка выбора карт для сравнения."""
     query = update.callback_query
@@ -252,12 +271,12 @@ def main():
             SELECT_CARDS: [CallbackQueryHandler(handle_card_selection)]
         },
         fallbacks=[],
-        per_message=False
+        per_message=True  # Включена обработка для каждого сообщения
     )
     
     app.add_handler(conv_handler)
-    app.add_handler(CallbackQueryHandler(profile, pattern="profile"))
-    app.add_handler(CallbackQueryHandler(show_promo, pattern="promo"))
+    app.add_handler(CallbackQueryHandler(profile, pattern="^profile$"))
+    app.add_handler(CallbackQueryHandler(show_promo, pattern="^promo$"))
     
     # Для Railway
     app.run_webhook(
