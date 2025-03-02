@@ -1,70 +1,3 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, CallbackContext, ConversationHandler
-import logging
-import os
-from dotenv import load_dotenv
-from collections import defaultdict
-
-# --- Настройки ---
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-
-load_dotenv()
-BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN")
-
-# --- Данные о банках и картах ---
-banks = {
-    "СберБанк": {
-        "СберКарта": {
-            "age_limit": 14,
-            "advantages": ["Кэшбэк до 10%", "Бесплатное обслуживание"],
-            "ref_link": "https://www.sberbank.ru/ru/person/bank_cards/debet/sbercard"
-        },
-        "Кредитная карта СберБанк": {
-            "age_limit": 18,
-            "advantages": ["Кредитный лимит до 300 000 ₽", "Льготный период до 50 дней"],
-            "ref_link": "https://www.sberbank.ru/ru/person/bank_cards/credit/credit_card"
-        }
-    },
-    "Альфа-Банк": {
-        "Альфа-Карта": {
-            "age_limit": 14,
-            "advantages": ["Кэшбэк до 5%", "Бесплатное обслуживание"],
-            "ref_link": "https://alfabank.ru/get-money/credit-cards/alfa-card/"
-        },
-        "Кредитная карта Альфа-Банк": {
-            "age_limit": 18,
-            "advantages": ["Кредитный лимит до 500 000 ₽", "Льготный период до 100 дней"],
-            "ref_link": "https://alfabank.ru/get-money/credit-cards/100-days/"
-        }
-    },
-    "Тинькофф": {
-        "Тинькофф Блэк": {
-            "age_limit": 14,
-            "advantages": ["Кэшбэк 1-30%", "До 7% на остаток"],
-            "ref_link": "https://tinkoff.ru/cards/debit-cards/tinkoff-black/"
-        },
-        "Тинькофф Платинум": {
-            "age_limit": 18,
-            "advantages": ["Кредитный лимит до 700 000 ₽", "Рассрочка 0%"],
-            "ref_link": "https://tinkoff.ru/cards/credit-cards/tinkoff-platinum/"
-        }
-    }
-}
-
-user_data = defaultdict(lambda: {
-    'age': None,
-    'selected_bank': None,
-    'selected_cards': []
-})
-
-ASK_AGE = 1
-SELECT_BANK = 2
-SELECT_CARDS = 3
-COMPARE_CARDS = 4
-
 # --- Вспомогательная функция для клавиатуры ---
 def build_keyboard(buttons):
     return InlineKeyboardMarkup([[InlineKeyboardButton(text, callback_data=callback)] for text, callback in buttons])
@@ -170,9 +103,13 @@ async def handle_card_info(update: Update, context: CallbackContext):
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
+    return SELECT_CARDS
 
-async def compare_all_cards(query):
+async def compare_all_cards(update: Update, context: CallbackContext):
     """Сравнение всех карт"""
+    query = update.callback_query
+    await query.answer()
+
     user_id = query.from_user.id
     text = "🔍 <b>Сравнение всех карт:</b>\n\n"
 
@@ -188,6 +125,7 @@ async def compare_all_cards(query):
         reply_markup=build_keyboard(keyboard),
         parse_mode="HTML"
     )
+    return SELECT_BANK
 
 async def handle_back_cards(update: Update, context: CallbackContext):
     """Обработка кнопки 'Назад'"""
@@ -205,8 +143,8 @@ def main():
         states={
             ASK_AGE: [CallbackQueryHandler(handle_age)],
             SELECT_BANK: [CallbackQueryHandler(handle_bank_selection)],
-            SELECT_CARDS: [CallbackQueryHandler(handle_card_info, pattern="^show_card_")],
-            COMPARE_CARDS: [CallbackQueryHandler(handle_back_cards, pattern="^back_cards$")]
+            SELECT_CARDS: [CallbackQueryHandler(handle_card_info, pattern="^show_card_"), CallbackQueryHandler(handle_back_cards, pattern="^back_cards$")],
+            COMPARE_CARDS: [CallbackQueryHandler(compare_all_cards, pattern="^compare_all_cards$")]
         },
         fallbacks=[],
         per_user=True,
@@ -215,8 +153,6 @@ def main():
     )
 
     app.add_handler(conv_handler)
-    app.add_handler(CallbackQueryHandler(handle_card_info, pattern="^show_card_"))
-    app.add_handler(CallbackQueryHandler(compare_all_cards, pattern="^compare_all_cards$"))
 
     app.run_polling()
 
