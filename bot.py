@@ -64,7 +64,7 @@ async def handle_age(update: Update, context: CallbackContext):
     await query.answer()
     
     user_id = query.from_user.id
-    user_data[user_id]['age'] = 14 if query.data == "age_14_17" else 18
+    user_data[user_id]['age'] = 14 если query.data == "age_14_17" иначе 18
 
     # Переход в меню выбора карт
     await show_card_selection(query)
@@ -79,7 +79,7 @@ async def show_card_selection(query):
         for card_name, data in cards.items():
             if user_data[user_id]['age'] >= data['age_limit']:
                 is_selected = card_name in user_data[user_id]['selected_cards']
-                text = f"{'✅ ' if is_selected else ''}{card_name}"
+                text = f"{'✅ ' если is_selected иначе ''}{card_name}"
                 keyboard.append((text, f"select_{bank_name}_{card_name}"))
 
     keyboard.append(("🔍 Сравнить выбранные", "compare_selected"))
@@ -99,20 +99,20 @@ async def handle_card_selection(update: Update, context: CallbackContext):
 
     user_id = query.from_user.id
 
-    if query.data.startswith("select_"):
+    если query.data.startswith("select_"):
         _, bank_name, card_name = query.data.split("_", 2)
         
-        if card_name in user_data[user_id]['selected_cards']:
+        если card_name in user_data[user_id]['selected_cards']:
             user_data[user_id]['selected_cards'].remove(card_name)
-        else:
+        иначе:
             user_data[user_id]['selected_cards'].append(card_name)
 
         await show_card_selection(query)
 
-    elif query.data == "compare_selected":
+    иначе если query.data == "compare_selected":
         await compare_selected_cards(query)
 
-    elif query.data == "back_main":
+    иначе если query.data == "back_main":
         await start(update, context)
 
 async def compare_selected_cards(query):
@@ -120,14 +120,14 @@ async def compare_selected_cards(query):
     user_id = query.from_user.id  # Исправлено получение user_id
     selected = user_data[user_id]['selected_cards']
 
-    if not selected:
+    если not selected:
         await query.edit_message_text("❌ Выберите карты для сравнения!")
         return
 
     text = "🔍 <b>Сравнение карт:</b>\n\n"
     for card_name in selected:
         for bank_name, cards in banks.items():
-            if card_name in cards:
+            если card_name in cards:
                 data = cards[card_name]
                 text += f"🏦 <b>{bank_name}</b> - <b>{card_name}</b>\n"
                 text += "🔥 <u>Преимущества:</u>\n- " + "\n- ".join(data["advantages"]) + "\n\n"
@@ -156,10 +156,4 @@ def main():
     )
 
     app.add_handler(conv_handler)
-    app.add_handler(CallbackQueryHandler(handle_card_selection, pattern="^select_"))
-    app.add_handler(CallbackQueryHandler(compare_selected_cards, pattern="^compare_selected$"))
-
-    app.run_polling()
-
-if __name__ == "__main__":
-    main()
+    app.add_handler
