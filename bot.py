@@ -20,11 +20,15 @@ banks = {
         "СберКарта": {
             "age_limit": 14,
             "advantages": ["Кэшбэк до 10%", "Бесплатное обслуживание"],
+            "release_time": "2-3 дня",
+            "requirements": ["Паспорт гражданина РФ"],
             "ref_link": "https://www.sberbank.ru/ru/person/bank_cards/debet/sbercard"
         },
         "Кредитная карта СберБанк": {
             "age_limit": 18,
             "advantages": ["Кредитный лимит до 300 000 ₽", "Льготный период до 50 дней"],
+            "release_time": "5-7 дней",
+            "requirements": ["Паспорт гражданина РФ", "Справка о доходах"],
             "ref_link": "https://www.sberbank.ru/ru/person/bank_cards/credit/credit_card"
         }
     },
@@ -32,11 +36,15 @@ banks = {
         "Альфа-Карта": {
             "age_limit": 14,
             "advantages": ["Кэшбэк до 5%", "Бесплатное обслуживание"],
+            "release_time": "3-5 дней",
+            "requirements": ["Паспорт гражданина РФ"],
             "ref_link": "https://alfabank.ru/get-money/credit-cards/alfa-card/"
         },
         "Кредитная карта Альфа-Банк": {
             "age_limit": 18,
             "advantages": ["Кредитный лимит до 500 000 ₽", "Льготный период до 100 дней"],
+            "release_time": "5-7 дней",
+            "requirements": ["Паспорт гражданина РФ", "Справка о доходах"],
             "ref_link": "https://alfabank.ru/get-money/credit-cards/100-days/"
         }
     },
@@ -44,11 +52,15 @@ banks = {
         "Тинькофф Блэк": {
             "age_limit": 14,
             "advantages": ["Кэшбэк 1-30%", "До 7% на остаток"],
+            "release_time": "2-3 дня",
+            "requirements": ["Паспорт гражданина РФ"],
             "ref_link": "https://tinkoff.ru/cards/debit-cards/tinkoff-black/"
         },
         "Тинькофф Платинум": {
             "age_limit": 18,
             "advantages": ["Кредитный лимит до 700 000 ₽", "Рассрочка 0%"],
+            "release_time": "5-7 дней",
+            "requirements": ["Паспорт гражданина РФ", "Справка о доходах"],
             "ref_link": "https://tinkoff.ru/cards/credit-cards/tinkoff-platinum/"
         }
     }
@@ -100,7 +112,7 @@ async def show_bank_selection(query):
 
     keyboard = [(bank_name, f"select_bank_{bank_name}") for bank_name in banks.keys()]
     keyboard.append(("🔍 Сравнить все карты", "compare_all_cards"))
-    keyboard.append(("🔙 Назад", "back_age"))
+    keyboard.append(("🔙 Изменить возраст", "change_age"))
 
     await query.edit_message_text(
         "🏦 Выбери банк:",
@@ -126,7 +138,7 @@ async def handle_bank_selection(update: Update, context: CallbackContext):
         await compare_all_cards(query)
         return COMPARE_CARDS
 
-    elif query.data == "back_age":
+    elif query.data == "change_age":
         await start(update, context)
         return ASK_AGE
 
@@ -160,6 +172,8 @@ async def handle_card_info(update: Update, context: CallbackContext):
 
     text = f"🏦 <b>{selected_bank}</b> - <b>{card_name}</b>\n\n"
     text += "🔥 <u>Преимущества:</u>\n- " + "\n- ".join(card["advantages"]) + "\n\n"
+    text += f"🚀 <u>Скорость выпуска:</u> {card['release_time']}\n\n"
+    text += f"📋 <u>Условия получения:</u>\n- " + "\n- ".join(card["requirements"]) + "\n"
 
     keyboard = [
         [InlineKeyboardButton("Оформить на лучших условиях", url=card['ref_link'])],
@@ -184,6 +198,8 @@ async def compare_all_cards(update: Update, context: CallbackContext):
         for card_name, card in cards.items():
             text += f"🏦 <b>{bank_name}</b> - <b>{card_name}</b>\n"
             text += "🔥 <u>Преимущества:</u>\n- " + "\n- ".join(card["advantages"]) + "\n"
+            text += f"🚀 <u>Скорость выпуска:</u> {card['release_time']}\n"
+            text += f"📋 <u>Условия получения:</u>\n- " + "\n- ".join(card["requirements"]) + "\n"
             text += f"🔗 <a href='{card['ref_link']}'>Ссылка на карту</a>\n\n"
 
     keyboard = [("🔙 Назад", "back_bank")]
@@ -202,6 +218,7 @@ async def handle_back_cards(update: Update, context: CallbackContext):
     return SELECT_CARDS
 
 # --- Запуск бота ---
+
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
     
@@ -210,7 +227,7 @@ def main():
         states={
             ASK_AGE: [CallbackQueryHandler(handle_age)],
             SELECT_BANK: [CallbackQueryHandler(handle_bank_selection)],
-            SELECT_CARDS: [CallbackQueryHandler(handle_card_info, pattern="^show_card_"), CallbackQueryHandler(handle_back_cards, pattern="^back_cards$")],
+            SELECT_CARDS: [CallbackQueryHandler(handle_card_info, pattern="^show_card_"), CallbackQueryHandler(handle_back_cards, pattern="^back_bank$")],
             COMPARE_CARDS: [CallbackQueryHandler(compare_all_cards, pattern="^compare_all_cards$")]
         },
         fallbacks=[],
