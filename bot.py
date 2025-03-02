@@ -1,155 +1,128 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, CallbackContext, ConversationHandler
-import logging
-import os
-from dotenv import load_dotenv
+import sqlite3
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.filters import Command
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import URLInputFile
 
-# --- Настройки ---
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
+bot = Bot(token="YOUR_BOT_TOKEN")
+dp = Dispatcher()
 
-# Загрузка переменных окружения
-load_dotenv()
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8105012250:AAFmOW45SKDGrn0pqIFvSVhQv3uwodCMKXs")
+# Инициализация БД
+conn = sqlite3.connect('cards.db')
+cursor = conn.cursor()
 
-# --- Данные о картах ---
-banks = {
-    "Тинькофф": {
-        "Тинькофф Блэк": {
-            "age_limit": 14,
-            "advantages": ["Кэшбэк 1-30%", "До 7% на остаток"],
-            "ref_link": "https://tinkoff.ru/black",
-            "promo": ["+1000 ₽ за регистрацию"]
-        },
-        "Тинькофф Платинум": {
-            "age_limit": 18,
-            "advantages": ["Кредитный лимит до 700 000 ₽", "Рассрочка 0%"],
-            "ref_link": "https://tinkoff.ru/platinum"
-        }
-    },
-    "Сбербанк": {
-        "SberPrime": {
-            "age_limit": 16,
-            "advantages": ["Подписки (Okko, СберПрайм)", "Кэшбэк 10%"],
-            "ref_link": "https://sberbank.ru/prime"
-        }
-    }
-}
+# Создание таблиц
+cursor.execute('''CREATE TABLE IF NOT EXISTS cards
+               (id INTEGER PRIMARY KEY,
+                name TEXT UNIQUE,
+                cashback REAL,
+                limits TEXT,
+                insurance TEXT,
+                category TEXT)''')
 
-# --- Глобальные переменные ---
-user_age = {}
-ASK_AGE = 1
+cursor.execute('''CREATE TABLE IF NOT EXISTS links
+               (card_id INTEGER,
+                url TEXT,
+                FOREIGN KEY(card_id) REFERENCES cards(id))''')
 
-# --- Основные функции ---
-async def start(update: Update, context: CallbackContext):
-    """Запуск бота и запрос возраста"""
-    keyboard = [
-        [InlineKeyboardButton("14-17 лет", callback_data="age_14_17")],
-        [InlineKeyboardButton("18+ лет", callback_data="age_18_plus")]
-    ]
-    await update.message.reply_text(
-        "👋 Привет! Я твой бот. Выбери свой возраст:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
-    return ASK_AGE
+conn.commit()
 
-async def handle_age(update: Update, context: CallbackContext):
-    """Обработка выбора возраста"""
-    query = update.callback_query
-    await query.answer()
-    chat_id = query.message.chat_id
+# Список админов (можно вынести в отдельную таблицу)
+ADMINS = [123456789]
 
-    if query.data == "age_14_17":
-        user_age[chat_id] = 14
-    else:
-        user_age[chat_id] = 18
+# Клавиатура для главного меню
+main_kb = [
+    [types.KeyboardButton(text="🎮 Геймификация")],
+    [types.KeyboardButton(text="💳 Сравнить карты")],
+    [types.KeyboardButton(text="📚 Обучение")]
+]
 
-    await show_main_menu(query)
-    return ConversationHandler.END
-
-async def show_main_menu(query):
-    """Главное меню с кнопками"""
-    keyboard = [
-        [InlineKeyboardButton("🏦 Банковские карты", callback_data="category_banks")],
-        [InlineKeyboardButton("🔍 Сравнить карты", callback_data="compare_cards")],
-        [InlineKeyboardButton("🎁 Акции", callback_data="promo")]
-    ]
-    await query.edit_message_text(
-        "🎮 Выбери раздел:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+# Обработчики команд
+@dp.message(Command("start"))
+async def start(message: types.Message):
+    await message.answer(
+        "Добро пожаловать в финансового помощника!",
+        reply_markup=types.ReplyKeyboardMarkup(
+            keyboard=main_kb,
+            resize_keyboard=True
+        )
     )
 
-async def button_handler(update: Update, context: CallbackContext):
-    """Обработка нажатия кнопок"""
-    query = update.callback_query
-    await query.answer()
-
+# Добавление ссылок (только для админов)
+@dp.message(Command("addlink"))
+async def add_link(message: types.Message):
+    if message.from_user.id not in ADMINS:
+        return await message.answer("Доступ запрещен")
+    
+    await message.answer(
+        "Введите данные в формате:\n"
+        "Название карты | Ссылка\n"
+        "Пример: Tinkoff Black | https://tinkoff.ru/black"
+    )
+    
+@dp.message(F.text.contains("|"))
+async def process_link(message: types.Message):
     try:
-        if query.data == "category_banks":
-            keyboard = [[InlineKeyboardButton(bank, callback_data=f"bank_{bank}")] for bank in banks]
-            await query.edit_message_text("🏦 Выбери банк:", reply_markup=InlineKeyboardMarkup(keyboard))
-
-        elif query.data.startswith("bank_"):
-            bank_name = query.data.split("_")[1]
-            chat_id = query.message.chat_id
-            keyboard = []
-            for card in banks[bank_name]:
-                if user_age.get(chat_id, 0) >= banks[bank_name][card]["age_limit"]:
-                    keyboard.append([InlineKeyboardButton(card, callback_data=f"card_{bank_name}_{card}")])
-            keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="category_banks")])
-            await query.edit_message_text(f"📇 Карты {bank_name}:", reply_markup=InlineKeyboardMarkup(keyboard))
-
-        elif query.data.startswith("card_"):
-            _, bank_name, card_name = query.data.split("_")
-            card = banks[bank_name][card_name]
-            text = f"<b>{card_name}</b>\n\n"
-            text += "🔥 <u>Преимущества</u>:\n- " + "\n- ".join(card["advantages"]) + "\n\n"
-            text += f"🔗 <a href='{card['ref_link']}'>Оформить карту</a>"
-            await query.edit_message_text(text, parse_mode="HTML")
-
-        elif query.data == "compare_cards":
-            text = "🔍 <b>Сравнение карт:</b>\n\n"
-            for bank_name, cards in banks.items():
-                text += f"🏦 <u>{bank_name}</u>:\n"
-                for card_name, data in cards.items():
-                    text += f"▫️ {card_name} (от {data['age_limit']}+ лет)\n"
-            await query.edit_message_text(text, parse_mode="HTML")
-
-        elif query.data == "promo":
-            text = "🎁 <b>Акции:</b>\n\n"
-            for bank_name, cards in banks.items():
-                for card_name, data in cards.items():
-                    if "promo" in data:
-                        text += f"🔥 {card_name}: {', '.join(data['promo'])}\n"
-            await query.edit_message_text(text, parse_mode="HTML")
-
+        card_name, url = message.text.split("|", 1)
+        card_name = card_name.strip()
+        url = url.strip()
+        
+        # Получаем ID карты
+        cursor.execute("SELECT id FROM cards WHERE name=?", (card_name,))
+        card_id = cursor.fetchone()
+        
+        if card_id:
+            # Обновляем или добавляем ссылку
+            cursor.execute(
+                "INSERT OR REPLACE INTO links VALUES (?, ?)",
+                (card_id[0], url)
+            conn.commit()
+            await message.answer(f"Ссылка для {card_name} обновлена!")
+        else:
+            await message.answer("Карта не найдена в базе")
+            
     except Exception as e:
-        logging.error(f"Ошибка: {e}")
-        await query.message.reply_text("⚠️ Произошла ошибка. Попробуйте позже.")
+        await message.answer(f"Ошибка: {str(e)}")
 
-def main():
-    """Запуск бота"""
-    app = Application.builder().token(BOT_TOKEN).build()
+# Показ карт с кнопками
+@dp.message(F.text == "💳 Сравнить карты")
+async def show_cards(message: types.Message):
+    cursor.execute('''SELECT cards.*, links.url 
+                   FROM cards 
+                   LEFT JOIN links ON cards.id=links.card_id''')
+    
+    cards = cursor.fetchall()
+    
+    for card in cards:
+        card_id, name, cashback, limits, insurance, category, url = card
+        
+        text = (
+            f"<b>{name}</b>\n\n"
+            f"Кэшбек: {cashback}%\n"
+            f"Лимиты: {limits}\n"
+            f"Страховки: {insurance}\n"
+            f"Категория: {category}"
+        )
+        
+        # Создаем клавиатуру
+        builder = InlineKeyboardBuilder()
+        if url:
+            builder.add(types.InlineKeyboardButton(
+                text="🚀 Оформить карту",
+                url=url)
+            )
+            
+        builder.add(types.InlineKeyboardButton(
+            text="⭐ Добавить в избранное",
+            callback_data=f"fav_{card_id}")
+        )
+        
+        await message.answer_photo(
+            photo=URLInputFile("https://example.com/card-image.jpg"),
+            caption=text,
+            reply_markup=builder.as_markup()
+        )
 
-    # Регистрация обработчиков
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
-        states={ASK_AGE: [CallbackQueryHandler(handle_age)]},
-        fallbacks=[],
-        per_message=False  # Исправлено на False
-    )
-    app.add_handler(conv_handler)
-    app.add_handler(CallbackQueryHandler(button_handler))
-
-    # Для Railway
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 5000)),
-        url_path=BOT_TOKEN,
-        webhook_url=f"https://web-production-c568.up.railway.app/{BOT_TOKEN}"
-    )
-
+# Запуск бота
 if __name__ == "__main__":
-    main()
+    dp.run_polling(bot)
