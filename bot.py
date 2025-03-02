@@ -179,8 +179,8 @@ def main():
     app.add_handler(conv_handler)
     app.add_handler(CallbackQueryHandler(handle_card_selection, pattern="^select_"))
     app.add_handler(CallbackQueryHandler(compare_selected_cards, pattern="^compare_selected$"))
-    app.add_handler(CommandHandler('предпочтения', set_preferences))
-    app.add_handler(CommandHandler('фильтровать', filter_cards))
+    app.add_handler(CommandHandler('preferences', set_preferences))
+    app.add_handler(CommandHandler('filter', filter_cards))
 
     app.run_polling()
 
