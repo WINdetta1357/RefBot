@@ -98,7 +98,7 @@ async def show_bank_selection(query):
     user_id = query.from_user.id
 
     keyboard = [(bank_name, f"select_bank_{bank_name}") for bank_name in banks.keys()]
-    keyboard.append(("🔙 Назад", "back_main"))
+    keyboard.append(("🔙 Назад", "back_age"))
 
     await query.edit_message_text(
         "🏦 Выбери банк:",
@@ -120,7 +120,7 @@ async def handle_bank_selection(update: Update, context: CallbackContext):
         await show_card_selection(query)
         return SELECT_CARDS
 
-    elif query.data == "back_main":
+    elif query.data == "back_age":
         await start(update, context)
         return ASK_AGE
 
