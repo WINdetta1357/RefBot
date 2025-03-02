@@ -260,6 +260,7 @@ async def compare_selected_cards(query):
     )
 
 # --- Запуск бота ---
+
 def main():
     """Запуск бота."""
     app = Application.builder().token(BOT_TOKEN).build()
@@ -271,20 +272,11 @@ def main():
             SELECT_CARDS: [CallbackQueryHandler(handle_card_selection)]
         },
         fallbacks=[],
-        per_message=True  # Включена обработка для каждого сообщения
+        # per_message=True УДАЛЕНО!
     )
     
     app.add_handler(conv_handler)
-    app.add_handler(CallbackQueryHandler(profile, pattern="^profile$"))
-    app.add_handler(CallbackQueryHandler(show_promo, pattern="^promo$"))
-    
-    # Для Railway
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 5000)),
-        url_path=BOT_TOKEN,
-        webhook_url=f"https://web-production-c568.up.railway.app/{BOT_TOKEN}"
-    )
+    # ... (остальные обработчики без изменений)
 
 if __name__ == "__main__":
     main()
