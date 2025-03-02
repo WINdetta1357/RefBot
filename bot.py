@@ -264,7 +264,8 @@ async def compare_selected_cards(query):
 
 
 
-# --- Запуск бота ---
+# ... (остальной код без изменений)
+
 def main():
     """Запуск бота."""
     app = Application.builder().token(BOT_TOKEN).build()
@@ -276,7 +277,10 @@ def main():
             SELECT_CARDS: [CallbackQueryHandler(handle_card_selection)]
         },
         fallbacks=[],
-        per_message=False  # Отключаем отслеживание для каждого сообщения
+        # Явно задаем параметры для подавления предупреждений
+        per_user=True,
+        per_chat=True,
+        per_message=False
     )
     
     app.add_handler(conv_handler)
