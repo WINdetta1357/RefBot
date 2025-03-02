@@ -207,29 +207,4 @@ async def handle_back_bank(update: Update, context: CallbackContext):
 
 # --- Настройка вебхуков ---
 async def set_webhook(app: Application):
-    await app.bot.set_webhook(WEBHOOK_URL)
-
-# --- Запуск бота ---
-def main():
-    app = Application.builder().token(BOT_TOKEN).build()
-    
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
-        states={
-            ASK_AGE: [CallbackQueryHandler(handle_age)],
-            SELECT_BANK: [CallbackQueryHandler(handle_bank_selection)],
-            SELECT_CARDS: [CallbackQueryHandler(handle_card_info, pattern="^show_card_")],
-            COMPARE_CARDS: [CallbackQueryHandler(handle_back_bank, pattern="^back_bank$")]
-        },
-        fallbacks=[],
-        per_user=True,
-        per_chat=True,
-        per_message=False
-    )
-
-    app.add_handler(conv_handler)
-    app.add_handler(CallbackQueryHandler(handle_card_info, pattern="^show_card_"))
-    app.add_handler(CallbackQueryHandler(compare_all_cards, pattern="^compare_all_cards$"))
-    app.add_handler(CallbackQueryHandler(handle_back_cards, pattern="^back_cards$"))
-    app.add_handler(CallbackQueryHandler(handle_back_bank, pattern="^back_bank$"))
-
+    await app.bot.set_webhook
