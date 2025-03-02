@@ -1,145 +1,81 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, CallbackContext, ConversationHandler
-import logging
 import os
+import logging
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ConversationHandler, CallbackContext
 from dotenv import load_dotenv
 
-# --- Настройки ---
+# --- Настройки логов ---
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO
 )
 
-# Загрузка переменных окружения
+# --- Загрузка переменных окружения ---
 load_dotenv()
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8105012250:AAFmOW45SKDGrn0pqIFvSVhQv3uwodCMKXs")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Добавь в Railway после получения домена
+PORT = int(os.getenv("PORT", 5000))  # Для вебхука
 
-# --- Данные о картах ---
-banks = {
-    "Тинькофф": {
-        "Тинькофф Блэк": {
-            "age_limit": 14,
-            "advantages": ["Кэшбэк 1-30%", "До 7% на остаток"],
-            "ref_link": "https://tinkoff.ru/black"
-        },
-        "Тинькофф Платинум": {
-            "age_limit": 18,
-            "advantages": ["Кредитный лимит до 700 000 ₽", "Рассрочка 0%"],
-            "ref_link": "https://tinkoff.ru/platinum"
-        }
-    },
-    "Сбербанк": {
-        "SberPrime": {
-            "age_limit": 16,
-            "advantages": ["Подписки (Okko, СберПрайм)", "Кэшбэк 10%"],
-            "ref_link": "https://sberbank.ru/prime"
-        }
-    }
-}
-
-# --- Глобальные переменные ---
-user_age = {}
+# --- Состояния ---
 ASK_AGE = 1
+user_age = {}
 
-# --- Основные функции ---
+# --- Обработчик /start ---
 async def start(update: Update, context: CallbackContext):
-    """Запуск бота и запрос возраста"""
     keyboard = [
         [InlineKeyboardButton("14-17 лет", callback_data="age_14_17")],
         [InlineKeyboardButton("18+ лет", callback_data="age_18_plus")]
     ]
-    await update.message.reply_text(
-        "👋 Привет! Я твой бот. Выбери свой возраст:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    await update.message.reply_text("👋 Привет! Выбери свой возраст:", reply_markup=InlineKeyboardMarkup(keyboard))
     return ASK_AGE
 
 async def handle_age(update: Update, context: CallbackContext):
-    """Обработка выбора возраста"""
+    """Обработка возраста"""
     query = update.callback_query
     await query.answer()
-    chat_id = query.message.chat_id
+    chat_id = query.message.chat.id
 
-    if query.data == "age_14_17":
-        user_age[chat_id] = 14
-    else:
-        user_age[chat_id] = 18
+    user_age[chat_id] = 14 if query.data == "age_14_17" else 18
 
-    await show_main_menu(query)
-    return ConversationHandler.END
-
-async def show_main_menu(query):
-    """Главное меню с кнопками"""
     keyboard = [
         [InlineKeyboardButton("🏦 Банковские карты", callback_data="category_banks")],
         [InlineKeyboardButton("🔍 Сравнить карты", callback_data="compare_cards")],
         [InlineKeyboardButton("🎁 Акции", callback_data="promo")]
     ]
-    await query.edit_message_text(
-        "🎮 Выбери раздел:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    await query.edit_message_text("🎮 Выбери раздел:", reply_markup=InlineKeyboardMarkup(keyboard))
+    return ConversationHandler.END
 
 async def button_handler(update: Update, context: CallbackContext):
-    """Обработка нажатия кнопок"""
+    """Обработка кнопок"""
     query = update.callback_query
     await query.answer()
-
-    try:
-        if query.data == "category_banks":
-            keyboard = [[InlineKeyboardButton(bank, callback_data=f"bank_{bank}")] for bank in banks]
-            await query.edit_message_text("🏦 Выбери банк:", reply_markup=InlineKeyboardMarkup(keyboard))
-
-        elif query.data.startswith("bank_"):
-            bank_name = query.data.split("_")[1]
-            chat_id = query.message.chat_id
-            keyboard = []
-            for card in banks[bank_name]:
-                if user_age.get(chat_id, 0) >= banks[bank_name][card]["age_limit"]:
-                    keyboard.append([InlineKeyboardButton(card, callback_data=f"card_{bank_name}_{card}")])
-            keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="category_banks")])
-            await query.edit_message_text(f"📇 Карты {bank_name}:", reply_markup=InlineKeyboardMarkup(keyboard))
-
-        elif query.data == "compare_cards":
-            text = "🔍 **Сравнение условий:**\n\n"
-            for bank in banks.values():
-                for card_name, data in bank.items():
-                    text += f"▫️ **{card_name}**\n— Возраст: {data['age_limit']}+\n— Преимущества: {', '.join(data['advantages'])}\n\n"
-            await query.edit_message_text(text, parse_mode="Markdown")
-
-        elif query.data == "promo":
-            text = "🎁 **Акции и спецпредложения:**\n\n"
-            for bank in banks.values():
-                for card in bank.values():
-                    if "promo" in card:
-                        text += f"🔥 {', '.join(card['promo'])}\n"
-            await query.edit_message_text(text, parse_mode="Markdown")
-
-    except Exception as e:
-        logging.error(f"Ошибка: {e}")
-        await query.message.reply_text("⚠️ Произошла ошибка. Попробуйте позже.")
+    await query.edit_message_text("Ты нажал кнопку.")
 
 def main():
     """Запуск бота"""
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # Регистрация обработчиков
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={ASK_AGE: [CallbackQueryHandler(handle_age)]},
-        fallbacks=[],
-        per_message=True  # Важное исправление для обработки callback
+        fallbacks=[]
     )
+
     app.add_handler(conv_handler)
     app.add_handler(CallbackQueryHandler(button_handler))
 
-    # Для Railway
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 5000)),
-        url_path=BOT_TOKEN,
-        webhook_url=f"https://YOUR_RAILWAY_PROJECT.up.railway.app/{BOT_TOKEN}"  # Замените на ваш домен!
-    )
+    # --- Запуск бота ---
+    if WEBHOOK_URL:
+        logging.info("🚀 Запуск в режиме WEBHOOK")
+        app.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            url_path=BOT_TOKEN,
+            webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}"
+        )
+    else:
+        logging.info("🤖 Запуск в режиме POLLING")
+        app.run_polling()
 
 if __name__ == "__main__":
     main()
