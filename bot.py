@@ -1,20 +1,20 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackContext, CallbackQueryHandler, ConversationHandler
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, CallbackContext, ConversationHandler
 import logging
 import os
-import requests
-import time
-from threading import Thread
+from dotenv import load_dotenv
 
-# ----- НАСТРОЙКИ -----
+# --- Настройки ---
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
-BOT_TOKEN = os.getenv("BOT_TOKEN")  # Токен из файла .env
-HEALTHCHECKS_URL = "https://hc-ping.com/ВАШ_УНИКАЛЬНЫЙ_ID"  # Замените на свой!
 
-# ----- ДАННЫЕ О КАРТАХ -----
+# Загрузка переменных окружения
+load_dotenv()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8105012250:AAFmOW45SKDGrn0pqIFvSVhQv3uwodCMKXs")  # Токен бота
+
+# --- Данные о картах ---
 banks = {
     "Тинькофф": {
         "Тинькофф Блэк": {
@@ -24,39 +24,33 @@ banks = {
         },
         "Тинькофф Платинум": {
             "age_limit": 18,
-            "advantages": ["Кредитный лимит до 700 000 ₽"],
+            "advantages": ["Кредитный лимит до 700 000 ₽", "Рассрочка 0%"],
             "ref_link": "https://tinkoff.ru/platinum"
+        }
+    },
+    "Сбербанк": {
+        "SberPrime": {
+            "age_limit": 16,
+            "advantages": ["Подписки (Okko, СберПрайм)", "Кэшбэк 10%"],
+            "ref_link": "https://sberbank.ru/prime"
         }
     }
 }
 
-# ----- ФИШКИ ПРОТИВ "ЗАСЫПАНИЯ" -----
-def keep_alive():
-    """Пингуем сервер каждые 5 минут, чтобы бот не спал"""
-    while True:
-        try:
-            # Пинг Google (чтобы сервер не бездействовал)
-            requests.get("https://google.com")
-            # Отправка уведомления в Healthchecks.io
-            requests.get(HEALTHCHECKS_URL, timeout=10)
-        except Exception as e:
-            logging.error(f"Ошибка пинга: {e}")
-        time.sleep(300)  # 5 минут
+# --- Глобальные переменные ---
+user_age = {}
+ASK_AGE = 1
 
-# Запускаем в фоновом режиме
-Thread(target=keep_alive, daemon=True).start()
-
-# ----- ОСНОВНЫЕ ФУНКЦИИ -----
+# --- Основные функции ---
 async def start(update: Update, context: CallbackContext):
-    """Запуск бота и выбор возраста"""
+    """Запуск бота и запрос возраста"""
     keyboard = [
         [InlineKeyboardButton("14-17 лет", callback_data="age_14_17")],
         [InlineKeyboardButton("18+ лет", callback_data="age_18_plus")]
     ]
     await update.message.reply_text(
-        "👋 Привет! Выбери свой возраст:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+        "👋 Привет! Я твой бот. Выбери свой возраст:",
+        reply_markup=InlineKeyboardMarkup(keyboard))
     return ASK_AGE
 
 async def handle_age(update: Update, context: CallbackContext):
@@ -84,8 +78,7 @@ async def show_main_menu(query):
     ]
     await query.edit_message_text(
         "🎮 Выбери раздел:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+        reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def button_handler(update: Update, context: CallbackContext):
     """Обработка нажатия кнопок"""
