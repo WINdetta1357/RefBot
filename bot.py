@@ -153,7 +153,7 @@ async def profile(update: Update, context: CallbackContext):
     
     text = f"👤 Ваш профиль:\n\n"
     text += f"⭐ Баллы: {data['points']}\n"
-    text += f"🏆 Достижения: {len(data['achievements'])}/{len(ACHIEVEMENTS)}\n"  # Исправлено
+    text += f"🏆 Достижения: {len(data['achievements'])}/{len(ACHIEVEMENTS)}\n"
     text += f"🤝 Приглашено друзей: {data['invited']}\n\n"
     
     if data['achievements']:
@@ -169,6 +169,75 @@ async def profile(update: Update, context: CallbackContext):
     await query.edit_message_text(
         text,
         reply_markup=build_keyboard(buttons)
+    )
+
+async def handle_card_selection(update: Update, context: CallbackContext):
+    """Обработка выбора карт для сравнения."""
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+
+    if query.data.startswith("select_"):
+        _, bank_name, card_name = query.data.split("_", 2)
+        if card_name in user_data[user_id]['selected_cards']:
+            user_data[user_id]['selected_cards'].remove(card_name)
+        else:
+            user_data[user_id]['selected_cards'].append(card_name)
+            user_data[user_id]['points'] += 20  # Баллы за выбор карты
+            # Обновляем предпочтения
+            for card_type in banks[bank_name][card_name].get('card_type', []):
+                user_data[user_id]['preferences'][card_type] += 1
+            await update_achievements(user_id, context)
+        
+        await show_card_selection(query)
+    
+    elif query.data == "compare_selected":
+        await compare_selected_cards(query)
+        user_data[user_id]['points'] += 30  # Баллы за сравнение
+        await update_achievements(user_id, context)
+
+    elif query.data == "back_main":
+        await show_main_menu(query)
+        return ConversationHandler.END
+
+async def show_card_selection(query):
+    """Показывает меню выбора карт для сравнения."""
+    user_id = query.message.chat_id
+    keyboard = []
+    for bank_name, cards in banks.items():
+        for card_name, data in cards.items():
+            if user_data[user_id]['age'] >= data['age_limit']:
+                is_selected = card_name in user_data[user_id]['selected_cards']
+                text = f"{'✅ ' if is_selected else ''}{card_name}"
+                keyboard.append([InlineKeyboardButton(text, callback_data=f"select_{bank_name}_{card_name}")])
+    keyboard.append([InlineKeyboardButton("🔍 Сравнить выбранные", callback_data="compare_selected")])
+    keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="back_main")])
+    await query.edit_message_text(
+        "🔍 Выбери карты для сравнения:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+async def compare_selected_cards(query):
+    """Сравнивает выбранные карты."""
+    user_id = query.message.chat_id
+    selected = user_data[user_id]['selected_cards']
+    
+    if not selected:
+        await query.edit_message_text("❌ Выберите карты для сравнения!")
+        return
+    
+    text = "🔍 <b>Сравнение карт:</b>\n\n"
+    for card_name in selected:
+        for bank_name, cards in banks.items():
+            if card_name in cards:
+                data = cards[card_name]
+                text += f"▫️ <b>{card_name}</b> (от {data['age_limit']}+ лет)\n"
+                text += "🔥 <u>Преимущества</u>:\n- " + "\n- ".join(data["advantages"]) + "\n\n"
+    keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="compare_cards")]]
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
     )
 
 # --- Запуск бота ---
