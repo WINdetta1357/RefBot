@@ -63,6 +63,7 @@ user_data = defaultdict(lambda: {
 ASK_AGE = 1
 SELECT_BANK = 2
 SELECT_CARDS = 3
+COMPARE_CARDS = 4
 
 # --- Вспомогательная функция для клавиатуры ---
 def build_keyboard(buttons):
@@ -163,6 +164,7 @@ async def handle_card_selection(update: Update, context: CallbackContext):
 
     elif query.data == "compare_selected":
         await compare_selected_cards(query)
+        return COMPARE_CARDS
 
     elif query.data == "back_bank":
         await show_bank_selection(query)
@@ -186,12 +188,19 @@ async def compare_selected_cards(query):
                 text += "🔥 <u>Преимущества:</u>\n- " + "\n- ".join(data["advantages"]) + "\n"
                 text += f"🔗 <a href='{data['ref_link']}'>Ссылка на карту</a>\n\n"
 
-    keyboard = [("🔙 Назад", "back_bank")]
+    keyboard = [("🔙 Назад", "back_cards")]
     await query.edit_message_text(
         text,
         reply_markup=build_keyboard(keyboard),
         parse_mode="HTML"
     )
+
+async def handle_back_cards(update: Update, context: CallbackContext):
+    """Обработка кнопки 'Назад' в сравнении карт"""
+    query = update.callback_query
+    await query.answer()
+    await show_card_selection(query)
+    return SELECT_CARDS
 
 # --- Запуск бота ---
 def main():
@@ -202,7 +211,8 @@ def main():
         states={
             ASK_AGE: [CallbackQueryHandler(handle_age)],
             SELECT_BANK: [CallbackQueryHandler(handle_bank_selection)],
-            SELECT_CARDS: [CallbackQueryHandler(handle_card_selection)]
+            SELECT_CARDS: [CallbackQueryHandler(handle_card_selection)],
+            COMPARE_CARDS: [CallbackQueryHandler(handle_back_cards, pattern="^back_cards$")]
         },
         fallbacks=[],
         per_user=True,
