@@ -44,18 +44,6 @@ banks = {
             "advantages": ["Кредитный лимит до 700 000 ₽", "Рассрочка 0%"],
             "ref_link": "https://unicom24.ru/redirect/1300142"
         }
-    },
-    "Газпромбанк": {
-        "Дебетовая карта Газпромбанка": {
-            "age_limit": 14,
-            "advantages": ["Кэшбэк до 5%", "Бесплатное обслуживание"],
-            "ref_link": "https://unicom24.ru/redirect/1300143"
-        },
-        "Кредитная карта Газпромбанка": {
-            "age_limit": 18,
-            "advantages": ["Кредитный лимит до 500 000 ₽", "Льготный период до 100 дней"],
-            "ref_link": "https://unicom24.ru/redirect/1300144"
-        }
     }
 }
 
@@ -158,17 +146,9 @@ async def handle_card_info(update: Update, context: CallbackContext):
     )
     return SELECT_CARDS
 
-async def handle_back_main_menu(update: Update, context: CallbackContext):
-    """Обработка возврата в главное меню"""
-    query = update.callback_query
-    await query.answer()
-    return await start(update, context)
-
-async def handle_back_banks(update: Update, context: CallbackContext):
-    """Обработка возврата в меню выбора банков"""
-    query = update.callback_query
-    await query.answer()
-    return await handle_age(update, context)
+async def error_handler(update: object, context: CallbackContext) -> None:
+    """Обработчик ошибок"""
+    logging.error("Exception occurred", exc_info=context.error)
 
 # --- Запуск приложения ---
 def main():
@@ -178,21 +158,20 @@ def main():
         entry_points=[CommandHandler('start', start)],
         states={
             ASK_AGE: [CallbackQueryHandler(handle_age)],
-            SELECT_BANK: [
-                CallbackQueryHandler(handle_bank_selection),
-                CallbackQueryHandler(handle_back_main_menu, pattern="back_to_main_menu")
-            ],
-            SELECT_CARDS: [
-                CallbackQueryHandler(handle_card_info),
-                CallbackQueryHandler(handle_back_banks, pattern="back_to_banks")
-            ],
+            SELECT_BANK: [CallbackQueryHandler(handle_bank_selection)],
+            SELECT_CARDS: [CallbackQueryHandler(handle_card_info)],
             SHOW_ALL_CARDS: [CallbackQueryHandler(show_all_cards)],
         },
-        fallbacks=[CallbackQueryHandler(handle_back_main_menu, pattern="back_to_main_menu")],
+        fallbacks=[CallbackQueryHandler(start, pattern="back_to_main_menu")],
     )
 
     app.add_handler(conv_handler)
+
+    # Регистрация обработчика ошибок
+    app.add_error_handler(error_handler)
+
     app.run_polling()
 
 if __name__ == "__main__":
     main()
+р
