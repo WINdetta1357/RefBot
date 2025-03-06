@@ -11,12 +11,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Загрузка переменных окружения
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+PORT = int(os.getenv("PORT", 8443))  # Порт для Railway
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # URL для вебхуков (если используется)
 
 # Состояния диалога
 MAIN_MENU, BANK_SELECTION, CARD_SELECTION, ALL_CARDS_VIEW = range(4)
 
+# Данные о банках (оставить без изменений)
 banks = {
     "СберБанк": {
         "СберКарта": {
@@ -202,7 +206,17 @@ def main() -> None:
     )
     
     application.add_handler(conv_handler)
-    application.run_polling()
+
+    # Настройка для Railway
+    if WEBHOOK_URL:
+        application.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            url_path=BOT_TOKEN,
+            webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}"
+        )
+    else:
+        application.run_polling()
 
 if __name__ == "__main__":
     main()
