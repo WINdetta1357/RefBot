@@ -14,10 +14,7 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN")
 
 # --- Константы для состояний ---
-ASK_AGE = 1
-SELECT_BANK = 2
-SELECT_CARDS = 3
-SHOW_ALL_CARDS = 4
+ASK_AGE, SELECT_BANK, SELECT_CARDS, SHOW_ALL_CARDS = range(4)
 
 # --- Данные о банках ---
 banks = {
@@ -94,15 +91,16 @@ async def handle_bank_selection(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
 
-    user_id = query.from_user.id
-
     if query.data == "show_all_cards":
         return await show_all_cards(query)
-
-    bank_name = query.data.split("_", 2)[2]
-    user_data[user_id]['selected_bank'] = bank_name
-
-    return await show_cards_menu(query, bank_name)
+    
+    if query.data.startswith("select_bank_"):
+        bank_name = query.data.split("_", 2)[2]
+        user_id = query.from_user.id
+        user_data[user_id]['selected_bank'] = bank_name
+        return await show_cards_menu(query, bank_name)
+    
+    return SELECT_BANK
 
 async def show_cards_menu(query, bank_name):
     """Меню выбора карт в конкретном банке"""
@@ -130,7 +128,7 @@ async def show_all_cards(query):
         reply_markup=build_keyboard(keyboard),
         parse_mode="HTML"
     )
-    return SELECT_BANK
+    return SHOW_ALL_CARDS
 
 async def handle_card_info(update: Update, context: CallbackContext):
     query = update.callback_query
@@ -145,7 +143,7 @@ async def handle_card_info(update: Update, context: CallbackContext):
     text += "🔥 <u>Преимущества:</u>\n- " + "\n- ".join(card["advantages"]) + "\n\n"
 
     keyboard = [[InlineKeyboardButton("Оформить", url=card['ref_link'])]]
-    keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="back_to_banks")])
+    keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="back_to_cards")])
     await query.edit_message_text(
         text,
         reply_markup=InlineKeyboardMarkup(keyboard),
@@ -159,6 +157,7 @@ async def handle_back(update: Update, context: CallbackContext):
     await query.answer()
 
     if query.data == "back_to_main_menu":
+        await query.edit_message_text("👋 Привет! Выбери свой возраст:")
         return await start(update, context)
     elif query.data == "back_to_banks":
         return await show_banks_menu(query)
@@ -170,7 +169,6 @@ async def error_handler(update: object, context: CallbackContext) -> None:
     """Обработчик ошибок"""
     logging.error("Exception occurred", exc_info=context.error)
 
-# --- Запуск приложения ---
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -180,15 +178,18 @@ def main():
             ASK_AGE: [CallbackQueryHandler(handle_age)],
             SELECT_BANK: [
                 CallbackQueryHandler(handle_bank_selection),
-                CallbackQueryHandler(handle_back, pattern="back_to_main_menu")
+                CallbackQueryHandler(handle_back, pattern="^back_to_main_menu$")
             ],
             SELECT_CARDS: [
                 CallbackQueryHandler(handle_card_info),
-                CallbackQueryHandler(handle_back, pattern="back_to_banks")
+                CallbackQueryHandler(handle_back, pattern="^back_to_banks$")
             ],
-            SHOW_ALL_CARDS: [CallbackQueryHandler(show_all_cards)],
+            SHOW_ALL_CARDS: [
+                CallbackQueryHandler(handle_back, pattern="^back_to_banks$")
+            ]
         },
         fallbacks=[],
+        map_to_parent={}
     )
 
     app.add_handler(conv_handler)
