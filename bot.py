@@ -76,6 +76,10 @@ async def handle_age(update: Update, context: CallbackContext):
     age = 14 if query.data == "age_14_17" else 18
     user_data[user_id] = {"age": age}
 
+    return await show_banks_menu(query)
+
+async def show_banks_menu(query):
+    """Меню выбора банка"""
     keyboard = [(bank, f"select_bank_{bank}") for bank in banks.keys()]
     keyboard.append(("Показать все карты", "show_all_cards"))
     keyboard.append(("🔙 Назад", "back_to_main_menu"))
@@ -93,12 +97,15 @@ async def handle_bank_selection(update: Update, context: CallbackContext):
     user_id = query.from_user.id
 
     if query.data == "show_all_cards":
-        await show_all_cards(query)
-        return SHOW_ALL_CARDS
+        return await show_all_cards(query)
 
     bank_name = query.data.split("_", 2)[2]
     user_data[user_id]['selected_bank'] = bank_name
 
+    return await show_cards_menu(query, bank_name)
+
+async def show_cards_menu(query, bank_name):
+    """Меню выбора карт в конкретном банке"""
     keyboard = [(card, f"show_card_{card}") for card in banks[bank_name].keys()]
     keyboard.append(("🔙 Назад", "back_to_banks"))
 
@@ -146,6 +153,19 @@ async def handle_card_info(update: Update, context: CallbackContext):
     )
     return SELECT_CARDS
 
+async def handle_back(update: Update, context: CallbackContext):
+    """Обработка возвратов"""
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "back_to_main_menu":
+        return await start(update, context)
+    elif query.data == "back_to_banks":
+        return await show_banks_menu(query)
+    elif query.data == "back_to_cards":
+        user_id = query.from_user.id
+        return await show_cards_menu(query, user_data[user_id]['selected_bank'])
+
 async def error_handler(update: object, context: CallbackContext) -> None:
     """Обработчик ошибок"""
     logging.error("Exception occurred", exc_info=context.error)
@@ -158,20 +178,23 @@ def main():
         entry_points=[CommandHandler('start', start)],
         states={
             ASK_AGE: [CallbackQueryHandler(handle_age)],
-            SELECT_BANK: [CallbackQueryHandler(handle_bank_selection)],
-            SELECT_CARDS: [CallbackQueryHandler(handle_card_info)],
+            SELECT_BANK: [
+                CallbackQueryHandler(handle_bank_selection),
+                CallbackQueryHandler(handle_back, pattern="back_to_main_menu")
+            ],
+            SELECT_CARDS: [
+                CallbackQueryHandler(handle_card_info),
+                CallbackQueryHandler(handle_back, pattern="back_to_banks")
+            ],
             SHOW_ALL_CARDS: [CallbackQueryHandler(show_all_cards)],
         },
-        fallbacks=[CallbackQueryHandler(start, pattern="back_to_main_menu")],
+        fallbacks=[],
     )
 
     app.add_handler(conv_handler)
-
-    # Регистрация обработчика ошибок
     app.add_error_handler(error_handler)
 
     app.run_polling()
 
 if __name__ == "__main__":
     main()
-р
