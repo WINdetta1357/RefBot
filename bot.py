@@ -1,72 +1,155 @@
-async def handle_bank_selection(update: Update, context: CallbackContext):
-    """Обработка выбора банка"""
-    query = update.callback_query
-    await query.answer()
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ConversationHandler, CallbackContext
+import logging
+import os
+from dotenv import load_dotenv
 
-    user_id = query.from_user.id
+# --- Настройки ---
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 
-    if query.data.startswith("select_bank_"):
-        bank_name = query.data.split("_", 2)[2]
-        user_data[user_id]['selected_bank'] = bank_name
+load_dotenv()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN")
 
-        # Переход в меню выбора карт
-        await show_card_selection(query)
-        return SELECT_CARDS
+# --- Константы для состояний ---
+ASK_AGE = 1
+SELECT_BANK = 2
+SELECT_CARDS = 3
+SHOW_ALL_CARDS = 4
 
-    elif query.data == "compare_all_cards":
-        await compare_all_cards(query)
-        return COMPARE_CARDS
+# --- Данные о банках ---
+banks = {
+    "СберБанк": {
+        "СберКарта": {
+            "age_limit": 14,
+            "advantages": ["Кэшбэк до 10%", "Бесплатное обслуживание"],
+            "ref_link": "https://unicom24.ru/redirect/1300139"
+        },
+        "Кредитная карта СберБанк": {
+            "age_limit": 18,
+            "advantages": ["Кредитный лимит до 300 000 ₽", "Льготный период до 50 дней"],
+            "ref_link": "https://unicom24.ru/redirect/1300140"
+        }
+    },
+    "Тинькофф": {
+        "Тинькофф Блэк": {
+            "age_limit": 14,
+            "advantages": ["Кэшбэк 1-30%", "До 7% на остаток"],
+            "ref_link": "https://unicom24.ru/redirect/1300141"
+        },
+        "Тинькофф Платинум": {
+            "age_limit": 18,
+            "advantages": ["Кредитный лимит до 700 000 ₽", "Рассрочка 0%"],
+            "ref_link": "https://unicom24.ru/redirect/1300142"
+        }
+    },
+    "Газпромбанк": {
+        "Дебетовая карта Газпромбанка": {
+            "age_limit": 14,
+            "advantages": ["Кэшбэк до 5%", "Бесплатное обслуживание"],
+            "ref_link": "https://unicom24.ru/redirect/1300143"
+        },
+        "Кредитная карта Газпромбанка": {
+            "age_limit": 18,
+            "advantages": ["Кредитный лимит до 500 000 ₽", "Льготный период до 100 дней"],
+            "ref_link": "https://unicom24.ru/redirect/1300144"
+        }
+    }
+}
 
-    elif query.data == "change_age":
-        await start(update, context)
-        return ASK_AGE
+user_data = {}
 
-
-async def show_card_selection(query):
-    """Меню выбора карт"""
-    user_id = query.from_user.id
-    selected_bank = user_data[user_id]['selected_bank']
-
-    if selected_bank not in banks:
-        await query.edit_message_text("Выбранный банк не найден.")
-        return SELECT_BANK
-
-    keyboard = []
-    for card_name, data in banks[selected_bank].items():
-        if user_data[user_id]['age'] >= data.get('age_limit', 0):
-            text = card_name
-            keyboard.append((text, f"show_card_{card_name}"))
-
-    keyboard.append(("🔙 Назад", "back_bank"))
-
-    await query.edit_message_text(
-        f"🔍 Выбери карту в банке {selected_bank}:",
-        reply_markup=build_keyboard(keyboard)
+# --- Вспомогательные функции ---
+def build_keyboard(buttons):
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton(text, callback_data=callback)] for text, callback in buttons]
     )
 
+# --- Обработчики ---
+async def start(update: Update, context: CallbackContext):
+    keyboard = [
+        ("14-17 лет", "age_14_17"),
+        ("18+ лет", "age_18_plus")
+    ]
+    await update.message.reply_text(
+        "👋 Привет! Выбери свой возраст:",
+        reply_markup=build_keyboard(keyboard)
+    )
+    return ASK_AGE
 
-async def handle_card_info(update: Update, context: CallbackContext):
-    """Показать информацию о карте и кнопку для оформления"""
+async def handle_age(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
 
     user_id = query.from_user.id
-    selected_bank = user_data[user_id]['selected_bank']
+    age = 14 if query.data == "age_14_17" else 18
+    user_data[user_id] = {"age": age}
+
+    keyboard = [(bank, f"select_bank_{bank}") for bank in banks.keys()]
+    keyboard.append(("Показать все карты", "show_all_cards"))
+    keyboard.append(("🔙 Назад", "change_age"))
+
+    await query.edit_message_text(
+        "🏦 Выбери банк или посмотри условия всех карт:",
+        reply_markup=build_keyboard(keyboard)
+    )
+    return SELECT_BANK
+
+async def handle_bank_selection(update: Update, context: CallbackContext):
+    query = update.callback_query
+    await query.answer()
+
+    user_id = query.from_user.id
+
+    if query.data == "show_all_cards":
+        await show_all_cards(query)
+        return SHOW_ALL_CARDS
+
+    bank_name = query.data.split("_", 2)[2]
+    user_data[user_id]['selected_bank'] = bank_name
+
+    keyboard = [(card, f"show_card_{card}") for card in banks[bank_name].keys()]
+    keyboard.append(("🔙 Назад", "back_to_banks"))
+
+    await query.edit_message_text(
+        f"🔍 Выбери карту в банке {bank_name}:",
+        reply_markup=build_keyboard(keyboard)
+    )
+    return SELECT_CARDS
+
+async def show_all_cards(query):
+    """Показать условия всех карт"""
+    text = "🔍 <b>Условия всех карт:</b>\n\n"
+    for bank_name, cards in banks.items():
+        for card_name, card in cards.items():
+            text += f"🏦 <b>{bank_name}</b> - <b>{card_name}</b>\n"
+            text += "🔥 <u>Преимущества:</u>\n- " + "\n- ".join(card["advantages"]) + "\n"
+            text += f"🔗 <a href='{card['ref_link']}'>Ссылка на карту</a>\n\n"
+
+    keyboard = [("🔙 Назад", "back_to_banks")]
+    await query.edit_message_text(
+        text,
+        reply_markup=build_keyboard(keyboard),
+        parse_mode="HTML"
+    )
+    return SELECT_BANK
+
+async def handle_card_info(update: Update, context: CallbackContext):
+    query = update.callback_query
+    await query.answer()
+
+    user_id = query.from_user.id
+    bank_name = user_data[user_id]['selected_bank']
     card_name = query.data.split("_", 2)[2]
+    card = banks[bank_name][card_name]
 
-    if card_name not in banks[selected_bank]:
-        await query.edit_message_text("Выбранная карта не найдена.")
-        return SELECT_CARDS
-
-    card = banks[selected_bank][card_name]
-    text = f"🏦 <b>{selected_bank}</b> - <b>{card_name}</b>\n\n"
+    text = f"🏦 <b>{bank_name}</b> - <b>{card_name}</b>\n\n"
     text += "🔥 <u>Преимущества:</u>\n- " + "\n- ".join(card["advantages"]) + "\n\n"
-    text += f"📋 <u>Условия получения:</u>\n- " + "\n- ".join(card.get("requirements", ["Нет требований"])) + "\n"
 
-    keyboard = [
-        [InlineKeyboardButton("Оформить на лучших условиях", url=card['ref_link'])],
-        [InlineKeyboardButton("🔙 Назад", callback_data="back_cards")]
-    ]
+    keyboard = [[InlineKeyboardButton("Оформить", url=card['ref_link'])]]
+    keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="back_to_banks")])
     await query.edit_message_text(
         text,
         reply_markup=InlineKeyboardMarkup(keyboard),
@@ -74,27 +157,25 @@ async def handle_card_info(update: Update, context: CallbackContext):
     )
     return SELECT_CARDS
 
+# --- Запуск приложения ---
+def main():
+    app = Application.builder().token(BOT_TOKEN).build()
 
-async def compare_all_cards(update: Update, context: CallbackContext):
-    """Сравнение всех карт"""
-    query = update.callback_query
-    await query.answer()
-
-    user_id = query.from_user.id
-    text = "🔍 <b>Сравнение всех карт:</b>\n\n"
-
-    for bank_name, cards in banks.items():
-        for card_name, card in cards.items():
-            text += f"🏦 <b>{bank_name}</b> - <b>{card_name}</b>\n"
-            text += "🔥 <u>Преимущества:</u>\n- " + "\n- ".join(card["advantages"]) + "\n"
-            text += f"📋 <u>Условия получения:</u>\n- " + "\n- ".join(card.get("requirements", ["Нет требований"])) + "\n"
-            text += f"🔗 <a href='{card['ref_link']}'>Ссылка на карту</a>\n\n"
-
-    keyboard = [("🔙 Назад", "back_bank")]
-    await query.edit_message_text(
-        text,
-        reply_markup=build_keyboard(keyboard),
-        parse_mode="HTML"
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('start', start)],
+        states={
+            ASK_AGE: [CallbackQueryHandler(handle_age)],
+            SELECT_BANK: [CallbackQueryHandler(handle_bank_selection)],
+            SELECT_CARDS: [CallbackQueryHandler(handle_card_info)],
+            SHOW_ALL_CARDS: [CallbackQueryHandler(show_all_cards)]
+        },
+        fallbacks=[],
     )
-    return SELECT_BANK
+
+    app.add_handler(conv_handler)
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
+
 
