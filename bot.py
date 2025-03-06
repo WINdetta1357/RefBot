@@ -111,7 +111,7 @@ async def handle_bank_selection(update: Update, context: CallbackContext):
     user_data[user_id]['selected_bank'] = bank_name
 
     keyboard = [(card, f"show_card_{card}") for card in banks[bank_name].keys()]
-    keyboard.append(("🔙 Назад", "back_to_banks"))
+    keyboard.append(("🔙 Назад", "back_to_main_menu"))
 
     await query.edit_message_text(
         f"🔍 Выбери карту в банке {bank_name}:",
@@ -128,7 +128,7 @@ async def show_all_cards(query):
             text += "🔥 <u>Преимущества:</u>\n- " + "\n- ".join(card["advantages"]) + "\n"
             text += f"🔗 <a href='{card['ref_link']}'>Ссылка на карту</a>\n\n"
 
-    keyboard = [("🔙 Назад", "back_to_banks")]
+    keyboard = [("🔙 Назад", "back_to_main_menu")]
     await query.edit_message_text(
         text,
         reply_markup=build_keyboard(keyboard),
@@ -149,13 +149,29 @@ async def handle_card_info(update: Update, context: CallbackContext):
     text += "🔥 <u>Преимущества:</u>\n- " + "\n- ".join(card["advantages"]) + "\n\n"
 
     keyboard = [[InlineKeyboardButton("Оформить", url=card['ref_link'])]]
-    keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="back_to_banks")])
+    keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="back_to_main_menu")])
     await query.edit_message_text(
         text,
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
     return SELECT_CARDS
+
+async def handle_back_main_menu(update: Update, context: CallbackContext):
+    """Обработка возврата в главное меню"""
+    query = update.callback_query
+    await query.answer()
+    
+    # Возвращаем пользователя на выбор возраста
+    keyboard = [
+        ("14-17 лет", "age_14_17"),
+        ("18+ лет", "age_18_plus")
+    ]
+    await query.edit_message_text(
+        "👋 Привет! Выбери свой возраст:",
+        reply_markup=build_keyboard(keyboard)
+    )
+    return ASK_AGE
 
 # --- Запуск приложения ---
 def main():
@@ -167,9 +183,9 @@ def main():
             ASK_AGE: [CallbackQueryHandler(handle_age)],
             SELECT_BANK: [CallbackQueryHandler(handle_bank_selection)],
             SELECT_CARDS: [CallbackQueryHandler(handle_card_info)],
-            SHOW_ALL_CARDS: [CallbackQueryHandler(show_all_cards)]
+            SHOW_ALL_CARDS: [CallbackQueryHandler(show_all_cards)],
         },
-        fallbacks=[],
+        fallbacks=[CallbackQueryHandler(handle_back_main_menu, pattern="back_to_main_menu")],
     )
 
     app.add_handler(conv_handler)
@@ -177,5 +193,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
