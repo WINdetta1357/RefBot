@@ -1,222 +1,113 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ConversationHandler, CallbackContext
-import logging
 import os
-from dotenv import load_dotenv
+import logging
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler, CallbackContext
 
-# Настройка логгирования
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
+# Включаем логирование
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Загрузка переменных окружения
-load_dotenv()
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-PORT = int(os.getenv("PORT", 8443))  # Порт для Railway
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # URL для вебхуков (если используется)
-
-# Состояния диалога
-MAIN_MENU, BANK_SELECTION, CARD_SELECTION, ALL_CARDS_VIEW = range(4)
-
-# Данные о банках (оставить без изменений)
+# Информация о банках и картах
 banks = {
-    "СберБанк": {
-        "СберКарта": {
-            "age_limit": 14,
-            "advantages": ["Кэшбэк до 10%", "Бесплатное обслуживание"],
-            "ref_link": "https://example.com/sber"
-        },
-        "Кредитная карта": {
-            "age_limit": 18,
-            "advantages": ["Льготный период 50 дней", "Лимит до 500 000 ₽"],
-            "ref_link": "https://example.com/sber_credit"
-        }
-    },
-    "Тинькофф": {
-        "Тинькофф Блэк": {
-            "age_limit": 14,
-            "advantages": ["До 30% кэшбэка", "Инвестиции"],
-            "ref_link": "https://example.com/tinkoff"
-        },
-        "Тинькофф Платинум": {
-            "age_limit": 18,
-            "advantages": ["Рассрочка 0%", "Премиальное обслуживание"],
-            "ref_link": "https://example.com/tinkoff_platinum"
-        }
-    }
+    'Сбербанк': ['Карта 1', 'Карта 2'],
+    'Альфа-Банк': ['Карта 3', 'Карта 4'],
 }
 
-def build_keyboard(buttons):
-    return InlineKeyboardMarkup([[InlineKeyboardButton(text, callback_data=data)] for text, data in buttons])
+cards_info = {
+    'Карта 1': 'Срок получения: 7 дней\nВыгоды: Кэшбэк 5%\nТип: Дебетовая\nОформить: [ссылка]',
+    'Карта 2': 'Срок получения: 5 дней\nВыгоды: Процент на остаток\nТип: Кредитная\nОформить: [ссылка]',
+    'Карта 3': 'Срок получения: 10 дней\nВыгоды: Бесплатное обслуживание\nТип: Дебетовая\nОформить: [ссылка]',
+    'Карта 4': 'Срок получения: 3 дня\nВыгоды: Премиальные услуги\nТип: Кредитная\nОформить: [ссылка]',
+}
 
-async def start(update: Update, context: CallbackContext) -> int:
-    keyboard = [
-        [("14-17 лет", "age_14_17"), ("18+ лет", "age_18_plus")]
-    ]
-    await update.message.reply_text(
-        "👋 Добро пожаловать! Выберите ваш возраст:",
-        reply_markup=build_keyboard(keyboard)
-    )
-    return MAIN_MENU
+user_data = {}
 
-async def handle_age(update: Update, context: CallbackContext) -> int:
+# Обработчик команды /start
+def start(update: Update, context: CallbackContext) -> None:
+    user_data[update.message.chat_id] = {}
+    keyboard = [[InlineKeyboardButton("Начать", callback_data='start')]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    update.message.reply_text('Привет! Сколько вам лет?', reply_markup=reply_markup)
+
+# Обработчик нажатия кнопок
+def button(update: Update, context: CallbackContext) -> None:
     query = update.callback_query
-    await query.answer()
-    
-    age_group = query.data
-    context.user_data["age"] = 14 if age_group == "age_14_17" else 18
-    
-    return await show_bank_selection(query)
+    query.answer()
+    data = query.data
 
-async def show_bank_selection(query) -> int:
-    keyboard = [
-        *[(bank, f"bank_{bank}") for bank in banks],
-        ("Все карты", "show_all_cards"),
-        ("🏠 Главное меню", "main_menu")
-    ]
-    await query.edit_message_text(
-        "🏦 Выберите банк:",
-        reply_markup=build_keyboard(keyboard)
-    )
-    return BANK_SELECTION
+    if data == 'start':
+        query.edit_message_text(text='Введите ваш возраст:')
+        user_data[query.message.chat_id]['state'] = 'age'
+    elif data.startswith('bank_'):
+        bank = data.split('_')[1]
+        user_data[query.message.chat_id]['bank'] = bank
+        keyboard = []
+        for card in banks[bank]:
+            keyboard.append([InlineKeyboardButton(card, callback_data=f'card_{card}')])
+        keyboard.append([InlineKeyboardButton("Назад", callback_data='back_to_banks')])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        query.edit_message_text(text=f'Карты в {bank}:', reply_markup=reply_markup)
+    elif data.startswith('card_'):
+        card = data.split('_')[1]
+        bank = user_data[query.message.chat_id]['bank']
+        info = cards_info.get(card, 'Информация о карте недоступна.')
+        keyboard = [[InlineKeyboardButton("Оформить на лучших условиях", url="YOUR_REFERRAL_LINK")]]
+        keyboard.append([InlineKeyboardButton("Назад", callback_data=f'back_to_bank_{bank}')])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        query.edit_message_text(text=info, reply_markup=reply_markup)
+    elif data == 'back_to_banks':
+        keyboard = []
+        for bank in banks:
+            keyboard.append([InlineKeyboardButton(bank, callback_data=f'bank_{bank}')])
+        keyboard.append([InlineKeyboardButton("Все карты", callback_data='all_cards')])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        query.edit_message_text(text='Выберите банк:', reply_markup=reply_markup)
+    elif data.startswith('back_to_bank_'):
+        bank = data.split('_')[2]
+        keyboard = []
+        for card in banks[bank]:
+            keyboard.append([InlineKeyboardButton(card, callback_data=f'card_{card}')])
+        keyboard.append([InlineKeyboardButton("Назад", callback_data='back_to_banks')])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        query.edit_message_text(text=f'Карты в {bank}:', reply_markup=reply_markup)
 
-async def handle_bank_selection(update: Update, context: CallbackContext) -> int:
-    query = update.callback_query
-    await query.answer()
-    
-    if query.data == "show_all_cards":
-        return await show_all_cards_view(query)
-    
-    if query.data == "main_menu":
-        return await return_to_main_menu(query)
-    
-    bank_name = query.data.split("_", 1)[1]
-    context.user_data["current_bank"] = bank_name
-    
-    return await show_card_selection(query, bank_name)
+# Обработчик текстовых сообщений
+def handle_message(update: Update, context: CallbackContext) -> None:
+    if user_data.get(update.message.chat_id, {}).get('state') == 'age':
+        age = update.message.text
+        try:
+            age = int(age)
+            user_data[update.message.chat_id]['age'] = age
+            keyboard = []
+            for bank in banks:
+                keyboard.append([InlineKeyboardButton(bank, callback_data=f'bank_{bank}')])
+            keyboard.append([InlineKeyboardButton("Все карты", callback_data='all_cards')])
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            update.message.reply_text(f'Банки для вашего возраста {age}:', reply_markup=reply_markup)
+        except ValueError:
+            update.message.reply_text('Пожалуйста, введите корректный возраст.')
 
-async def show_card_selection(query, bank_name) -> int:
-    cards = banks[bank_name]
-    keyboard = [
-        *[(card, f"card_{card}") for card in cards],
-        ("🔙 Назад", "back_to_banks"),
-        ("🏠 Главное меню", "main_menu")
-    ]
-    await query.edit_message_text(
-        f"🏦 {bank_name}\nВыберите карту:",
-        reply_markup=build_keyboard(keyboard))
-    return CARD_SELECTION
-
-async def handle_card_selection(update: Update, context: CallbackContext) -> int:
-    query = update.callback_query
-    await query.answer()
-    
-    if query.data == "back_to_banks":
-        return await show_bank_selection(query)
-    
-    if query.data == "main_menu":
-        return await return_to_main_menu(query)
-    
-    card_name = query.data.split("_", 1)[1]
-    bank_name = context.user_data["current_bank"]
-    card_info = banks[bank_name][card_name]
-    
-    text = f"🏦 {bank_name} - {card_name}\n\n"
-    text += "🔥 Преимущества:\n" + "\n".join(f"• {adv}" for adv in card_info["advantages"])
-    text += f"\n\n🔗 Ссылка: {card_info['ref_link']}"
-    
-    keyboard = [
-        [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_cards")],
-        [InlineKeyboardButton("🏠 Главное меню", callback_data="main_menu")]
-    ]
-    
-    await query.edit_message_text(
-        text,
-        reply_markup=InlineKeyboardMarkup(keyboard))
-    return CARD_SELECTION
-
-async def show_all_cards_view(query) -> int:
-    text = "📋 Все доступные карты:\n\n"
-    for bank, cards in banks.items():
-        text += f"🏦 {bank}:\n"
-        for card, info in cards.items():
-            text += f"  • {card} ({info['age_limit']}+)\n"
-    
-    keyboard = [
-        [InlineKeyboardButton("🔙 Назад", callback_data="back_to_banks")],
-        [InlineKeyboardButton("🏠 Главное меню", callback_data="main_menu")]
-    ]
-    
-    await query.edit_message_text(
-        text,
-        reply_markup=InlineKeyboardMarkup(keyboard))
-    return ALL_CARDS_VIEW
-
-async def handle_navigation(update: Update, context: CallbackContext) -> int:
-    query = update.callback_query
-    await query.answer()
-    
-    if query.data == "main_menu":
-        return await return_to_main_menu(query)
-    
-    if query.data == "back_to_banks":
-        return await show_bank_selection(query)
-    
-    if query.data == "back_to_cards":
-        return await show_card_selection(query, context.user_data["current_bank"])
-
-async def return_to_main_menu(query) -> int:
-    await query.edit_message_text(
-        "🏠 Вы вернулись в главное меню!",
-        reply_markup=build_keyboard([
-            ("14-17 лет", "age_14_17"),
-            ("18+ лет", "age_18_plus")
-        ]))
-    return MAIN_MENU
-
-async def cancel(update: Update, context: CallbackContext) -> int:
-    await update.message.reply_text("🚫 Сессия завершена")
-    return ConversationHandler.END
-
+# Основная функция
 def main() -> None:
-    application = Application.builder().token(BOT_TOKEN).build()
-    
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
-        states={
-            MAIN_MENU: [
-                CallbackQueryHandler(handle_age)
-            ],
-            BANK_SELECTION: [
-                CallbackQueryHandler(handle_bank_selection),
-                CallbackQueryHandler(return_to_main_menu, pattern="^main_menu$")
-            ],
-            CARD_SELECTION: [
-                CallbackQueryHandler(handle_card_selection),
-                CallbackQueryHandler(handle_navigation)
-            ],
-            ALL_CARDS_VIEW: [
-                CallbackQueryHandler(handle_navigation)
-            ]
-        },
-        fallbacks=[CommandHandler("cancel", cancel)],
-        allow_reentry=True
-    )
-    
-    application.add_handler(conv_handler)
+    token = os.getenv("BOT_TOKEN")
 
-    # Настройка для Railway
-    if WEBHOOK_URL:
-        application.run_webhook(
-            listen="0.0.0.0",
-            port=PORT,
-            url_path=BOT_TOKEN,
-            webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}"
-        )
-    else:
-        application.run_polling()
+    updater = Updater(token)
+    dispatcher = updater.dispatcher
 
-if __name__ == "__main__":
+    dispatcher.add_handler(CommandHandler("start", start))
+    dispatcher.add_handler(CallbackQueryHandler(button))
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+
+    # Вебхуки для Railway
+    PORT = int(os.environ.get('PORT', '8443'))
+    APP_NAME = os.getenv("APP_NAME")  # Замените на ваше приложение на Railway
+
+    updater.start_webhook(listen="0.0.0.0",
+                          port=PORT,
+                          url_path=token,
+                          webhook_url=f"https://{APP_NAME}.railway.app/{token}")
+    
+    updater.idle()
+
+if __name__ == '__main__':
     main()
