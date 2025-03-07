@@ -1,113 +1,112 @@
 import os
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler, CallbackContext
+from aiogram import Bot, Dispatcher, types
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.utils.executor import start_webhook
+from fastapi import FastAPI
+import uvicorn
 
-# Включаем логирование
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Настройки
+TOKEN = os.getenv("BOT_TOKEN")  # Токен бота из переменных окружения
+WEBHOOK_HOST = "https://refbot-production-c08c.up.railway.app"
+WEBHOOK_PATH = "/webhook"
+WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
-# Информация о банках и картах
-banks = {
-    'Сбербанк': ['Карта 1', 'Карта 2'],
-    'Альфа-Банк': ['Карта 3', 'Карта 4'],
-}
+# Настройки веб-сервера
+WEBAPP_HOST = "0.0.0.0"
+WEBAPP_PORT = int(os.getenv("PORT", 8080))
 
-cards_info = {
-    'Карта 1': 'Срок получения: 7 дней\nВыгоды: Кэшбэк 5%\nТип: Дебетовая\nОформить: [ссылка]',
-    'Карта 2': 'Срок получения: 5 дней\nВыгоды: Процент на остаток\nТип: Кредитная\nОформить: [ссылка]',
-    'Карта 3': 'Срок получения: 10 дней\nВыгоды: Бесплатное обслуживание\nТип: Дебетовая\nОформить: [ссылка]',
-    'Карта 4': 'Срок получения: 3 дня\nВыгоды: Премиальные услуги\nТип: Кредитная\nОформить: [ссылка]',
-}
+# Логирование
+logging.basicConfig(level=logging.INFO)
 
+# Инициализация бота и диспетчера
+bot = Bot(token=TOKEN)
+dp = Dispatcher(bot)
+app = FastAPI()
+
+# Переменные
 user_data = {}
 
+# Главное меню
+main_menu = ReplyKeyboardMarkup(resize_keyboard=True)
+main_menu.add(KeyboardButton("Выбрать возраст"))
+
+# Функция создания кнопок с возрастом
+def age_keyboard():
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add("18", "21", "25", "30")
+    return keyboard
+
 # Обработчик команды /start
-def start(update: Update, context: CallbackContext) -> None:
-    user_data[update.message.chat_id] = {}
-    keyboard = [[InlineKeyboardButton("Начать", callback_data='start')]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text('Привет! Сколько вам лет?', reply_markup=reply_markup)
+@dp.message_handler(commands=['start'])
+async def start(message: types.Message):
+    await message.answer("Привет! Сколько тебе лет?", reply_markup=age_keyboard())
 
-# Обработчик нажатия кнопок
-def button(update: Update, context: CallbackContext) -> None:
-    query = update.callback_query
-    query.answer()
-    data = query.data
+# Обработчик выбора возраста
+@dp.message_handler(lambda message: message.text.isdigit())
+async def age_selected(message: types.Message):
+    age = int(message.text)
+    user_data[message.from_user.id] = {"age": age}
+    await message.answer(f"Тебе {age} лет. Выбери банк:", reply_markup=banks_keyboard())
 
-    if data == 'start':
-        query.edit_message_text(text='Введите ваш возраст:')
-        user_data[query.message.chat_id]['state'] = 'age'
-    elif data.startswith('bank_'):
-        bank = data.split('_')[1]
-        user_data[query.message.chat_id]['bank'] = bank
-        keyboard = []
-        for card in banks[bank]:
-            keyboard.append([InlineKeyboardButton(card, callback_data=f'card_{card}')])
-        keyboard.append([InlineKeyboardButton("Назад", callback_data='back_to_banks')])
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        query.edit_message_text(text=f'Карты в {bank}:', reply_markup=reply_markup)
-    elif data.startswith('card_'):
-        card = data.split('_')[1]
-        bank = user_data[query.message.chat_id]['bank']
-        info = cards_info.get(card, 'Информация о карте недоступна.')
-        keyboard = [[InlineKeyboardButton("Оформить на лучших условиях", url="YOUR_REFERRAL_LINK")]]
-        keyboard.append([InlineKeyboardButton("Назад", callback_data=f'back_to_bank_{bank}')])
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        query.edit_message_text(text=info, reply_markup=reply_markup)
-    elif data == 'back_to_banks':
-        keyboard = []
-        for bank in banks:
-            keyboard.append([InlineKeyboardButton(bank, callback_data=f'bank_{bank}')])
-        keyboard.append([InlineKeyboardButton("Все карты", callback_data='all_cards')])
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        query.edit_message_text(text='Выберите банк:', reply_markup=reply_markup)
-    elif data.startswith('back_to_bank_'):
-        bank = data.split('_')[2]
-        keyboard = []
-        for card in banks[bank]:
-            keyboard.append([InlineKeyboardButton(card, callback_data=f'card_{card}')])
-        keyboard.append([InlineKeyboardButton("Назад", callback_data='back_to_banks')])
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        query.edit_message_text(text=f'Карты в {bank}:', reply_markup=reply_markup)
+# Функция клавиатуры банков
+def banks_keyboard():
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add("Сбербанк", "Тинькофф", "Альфа-Банк")
+    keyboard.add("Все карты")
+    return keyboard
 
-# Обработчик текстовых сообщений
-def handle_message(update: Update, context: CallbackContext) -> None:
-    if user_data.get(update.message.chat_id, {}).get('state') == 'age':
-        age = update.message.text
-        try:
-            age = int(age)
-            user_data[update.message.chat_id]['age'] = age
-            keyboard = []
-            for bank in banks:
-                keyboard.append([InlineKeyboardButton(bank, callback_data=f'bank_{bank}')])
-            keyboard.append([InlineKeyboardButton("Все карты", callback_data='all_cards')])
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            update.message.reply_text(f'Банки для вашего возраста {age}:', reply_markup=reply_markup)
-        except ValueError:
-            update.message.reply_text('Пожалуйста, введите корректный возраст.')
+# Обработчик выбора банка
+@dp.message_handler(lambda message: message.text in ["Сбербанк", "Тинькофф", "Альфа-Банк", "Все карты"])
+async def bank_selected(message: types.Message):
+    user_id = message.from_user.id
+    bank = message.text
+    user_data[user_id]["bank"] = bank
+    await message.answer(f"Ты выбрал {bank}. Вот доступные карты:", reply_markup=cards_keyboard(bank))
 
-# Основная функция
-def main() -> None:
-    token = os.getenv("BOT_TOKEN")
+# Функция клавиатуры карт
+def cards_keyboard(bank):
+    keyboard = InlineKeyboardMarkup()
+    if bank == "Сбербанк":
+        keyboard.add(InlineKeyboardButton("Карта 1", callback_data="sber_card_1"))
+    elif bank == "Тинькофф":
+        keyboard.add(InlineKeyboardButton("Карта 2", callback_data="tinkoff_card_1"))
+    elif bank == "Альфа-Банк":
+        keyboard.add(InlineKeyboardButton("Карта 3", callback_data="alfa_card_1"))
+    keyboard.add(InlineKeyboardButton("Назад", callback_data="back_to_banks"))
+    return keyboard
 
-    updater = Updater(token)
-    dispatcher = updater.dispatcher
+# Обработчик выбора карты
+@dp.callback_query_handler(lambda c: c.data.endswith("_card_1"))
+async def card_info(callback_query: types.CallbackQuery):
+    card_info_text = "Информация о карте..."  # Заглушка, сюда подставим реальные данные
+    await bot.send_message(callback_query.from_user.id, card_info_text, reply_markup=apply_button())
 
-    dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(CallbackQueryHandler(button))
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+# Кнопка "Оформить карту"
+def apply_button():
+    keyboard = InlineKeyboardMarkup()
+    keyboard.add(InlineKeyboardButton("Оформить на лучших условиях", url="https://your-ref-link.com"))
+    keyboard.add(InlineKeyboardButton("Назад", callback_data="back_to_banks"))
+    return keyboard
 
-    # Вебхуки для Railway
-    PORT = int(os.environ.get('PORT', '8443'))
-    APP_NAME = os.getenv("APP_NAME")  # Замените на ваше приложение на Railway
+# Обработчик кнопки "Назад"
+@dp.callback_query_handler(lambda c: c.data == "back_to_banks")
+async def back_to_banks(callback_query: types.CallbackQuery):
+    await bot.send_message(callback_query.from_user.id, "Выбери банк:", reply_markup=banks_keyboard())
 
-    updater.start_webhook(listen="0.0.0.0",
-                          port=PORT,
-                          url_path=token,
-                          webhook_url=f"https://{APP_NAME}.railway.app/{token}")
-    
-    updater.idle()
+# Обработчик вебхука
+@app.post(WEBHOOK_PATH)
+async def webhook(update: dict):
+    telegram_update = types.Update(**update)
+    await dp.process_update(telegram_update)
+    return {"status": "ok"}
 
-if __name__ == '__main__':
-    main()
+# Запуск вебхука
+async def on_startup():
+    await bot.set_webhook(WEBHOOK_URL)
+
+async def on_shutdown():
+    await bot.delete_webhook()
+
+if __name__ == "__main__":
+    uvicorn.run(app, host=WEBAPP_HOST, port=WEBAPP_PORT)
