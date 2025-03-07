@@ -1,112 +1,162 @@
-import os
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, CallbackContext, ConversationHandler
 import logging
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.utils.executor import start_webhook
-from fastapi import FastAPI
-import uvicorn
+import os
+from dotenv import load_dotenv
+from collections import defaultdict
 
-# Настройки
-TOKEN = os.getenv("BOT_TOKEN")  # Токен бота из переменных окружения
-WEBHOOK_HOST = "https://refbot-production-c08c.up.railway.app"
-WEBHOOK_PATH = "/webhook"
-WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
+# --- Настройки ---
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levellevel)s - %(message)s',
+    level=logging.INFO
+)
 
-# Настройки веб-сервера
-WEBAPP_HOST = "0.0.0.0"
-WEBAPP_PORT = int(os.getenv("PORT", 8080))
+load_dotenv()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN")
 
-# Логирование
-logging.basicConfig(level=logging.INFO)
+# --- Данные о банках и картах ---
+banks = {
+    "СберБанк": {
+        "СберКарта": {
+            "age_limit": 14,
+            "advantages": ["Кэшбэк до 10%", "Бесплатное обслуживание"],
+            "ref_link": "https://www.sberbank.ru/ru/person/bank_cards/debet/sbercard"
+        },
+        "Кредитная карта СберБанк": {
+            "age_limit": 18,
+            "advantages": ["Кредитный лимит до 300 000 ₽", "Льготный период до 50 дней"],
+            "ref_link": "https://www.sberbank.ru/ru/person/bank_cards/credit/credit_card"
+        }
+    },
+    "Альфа-Банк": {
+        "Альфа-Карта": {
+            "age_limit": 14,
+            "advantages": ["Кэшбэк до 5%", "Бесплатное обслуживание"],
+            "ref_link": "https://alfabank.ru/get-money/credit-cards/alfa-card/"
+        },
+        "Кредитная карта Альфа-Банк": {
+            "age_limit": 18,
+            "advantages": ["Кредитный лимит до 500 000 ₽", "Льготный период до 100 дней"],
+            "ref_link": "https://alfabank.ru/get-money/credit-cards/100-days/"
+        }
+    },
+    "Тинькофф": {
+        "Тинькофф Блэк": {
+            "age_limit": 14,
+            "advantages": ["Кэшбэк 1-30%", "До 7% на остаток"],
+            "ref_link": "https://tinkoff.ru/cards/debit-cards/tinkoff-black/"
+        },
+        "Тинькофф Платинум": {
+            "age_limit": 18,
+            "advantages": ["Кредитный лимит до 700 000 ₽", "Рассрочка 0%"],
+            "ref_link": "https://tinkoff.ru/cards/credit-cards/tinkoff-platinum/"
+        }
+    }
+}
 
-# Инициализация бота и диспетчера
-bot = Bot(token=TOKEN)
-dp = Dispatcher(bot)
-app = FastAPI()
+user_data = defaultdict(lambda: {
+    'age': None,
+    'selected_bank': None,
+    'selected_cards': []
+})
 
-# Переменные
-user_data = {}
+ASK_AGE = 1
+SELECT_BANK = 2
+SELECT_CARDS = 3
+COMPARE_CARDS = 4
 
-# Главное меню
-main_menu = ReplyKeyboardMarkup(resize_keyboard=True)
-main_menu.add(KeyboardButton("Выбрать возраст"))
+# --- Вспомогательная функция для клавиатуры ---
+def build_keyboard(buttons):
+    return InlineKeyboardMarkup([[InlineKeyboardButton(text, callback_data=callback)] for text, callback in buttons])
 
-# Функция создания кнопок с возрастом
-def age_keyboard():
-    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add("18", "21", "25", "30")
-    return keyboard
+# --- Обработчики ---
+async def start(update: Update, context: CallbackContext):
+    """Запуск бота"""
+    keyboard = [
+        ("14-17 лет", "age_14_17"),
+        ("18+ лет", "age_18_plus")
+    ]
+    await update.message.reply_text(
+        "👋 Привет! Выбери свой возраст:",
+        reply_markup=build_keyboard(keyboard)
+    )
+    return ASK_AGE
 
-# Обработчик команды /start
-@dp.message_handler(commands=['start'])
-async def start(message: types.Message):
-    await message.answer("Привет! Сколько тебе лет?", reply_markup=age_keyboard())
+async def handle_age(update: Update, context: CallbackContext):
+    """Обработка возраста"""
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = query.from_user.id
+    user_data[user_id]['age'] = 14 if query.data == "age_14_17" else 18
 
-# Обработчик выбора возраста
-@dp.message_handler(lambda message: message.text.isdigit())
-async def age_selected(message: types.Message):
-    age = int(message.text)
-    user_data[message.from_user.id] = {"age": age}
-    await message.answer(f"Тебе {age} лет. Выбери банк:", reply_markup=banks_keyboard())
+    # Переход в меню выбора банка
+    await show_bank_selection(query)
+    return SELECT_BANK
 
-# Функция клавиатуры банков
-def banks_keyboard():
-    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add("Сбербанк", "Тинькофф", "Альфа-Банк")
-    keyboard.add("Все карты")
-    return keyboard
+async def show_bank_selection(query):
+    """Меню выбора банка"""
+    user_id = query.from_user.id
 
-# Обработчик выбора банка
-@dp.message_handler(lambda message: message.text in ["Сбербанк", "Тинькофф", "Альфа-Банк", "Все карты"])
-async def bank_selected(message: types.Message):
-    user_id = message.from_user.id
-    bank = message.text
-    user_data[user_id]["bank"] = bank
-    await message.answer(f"Ты выбрал {bank}. Вот доступные карты:", reply_markup=cards_keyboard(bank))
+    keyboard = [(bank_name, f"select_bank_{bank_name}") for bank_name in banks.keys()]
+    keyboard.append(("🔍 Сравнить все карты", "compare_all_cards"))
+    keyboard.append(("🔙 Назад", "back_age"))
 
-# Функция клавиатуры карт
-def cards_keyboard(bank):
-    keyboard = InlineKeyboardMarkup()
-    if bank == "Сбербанк":
-        keyboard.add(InlineKeyboardButton("Карта 1", callback_data="sber_card_1"))
-    elif bank == "Тинькофф":
-        keyboard.add(InlineKeyboardButton("Карта 2", callback_data="tinkoff_card_1"))
-    elif bank == "Альфа-Банк":
-        keyboard.add(InlineKeyboardButton("Карта 3", callback_data="alfa_card_1"))
-    keyboard.add(InlineKeyboardButton("Назад", callback_data="back_to_banks"))
-    return keyboard
+    await query.edit_message_text(
+        "🏦 Выбери банк:",
+        reply_markup=build_keyboard(keyboard)
+    )
 
-# Обработчик выбора карты
-@dp.callback_query_handler(lambda c: c.data.endswith("_card_1"))
-async def card_info(callback_query: types.CallbackQuery):
-    card_info_text = "Информация о карте..."  # Заглушка, сюда подставим реальные данные
-    await bot.send_message(callback_query.from_user.id, card_info_text, reply_markup=apply_button())
+async def handle_bank_selection(update: Update, context: CallbackContext):
+    """Обработка выбора банка"""
+    query = update.callback_query
+    await query.answer()
 
-# Кнопка "Оформить карту"
-def apply_button():
-    keyboard = InlineKeyboardMarkup()
-    keyboard.add(InlineKeyboardButton("Оформить на лучших условиях", url="https://your-ref-link.com"))
-    keyboard.add(InlineKeyboardButton("Назад", callback_data="back_to_banks"))
-    return keyboard
+    user_id = query.from_user.id
 
-# Обработчик кнопки "Назад"
-@dp.callback_query_handler(lambda c: c.data == "back_to_banks")
-async def back_to_banks(callback_query: types.CallbackQuery):
-    await bot.send_message(callback_query.from_user.id, "Выбери банк:", reply_markup=banks_keyboard())
+    if query.data.startswith("select_bank_"):
+        bank_name = query.data.split("_", 2)[2]
+        user_data[user_id]['selected_bank'] = bank_name
 
-# Обработчик вебхука
-@app.post(WEBHOOK_PATH)
-async def webhook(update: dict):
-    telegram_update = types.Update(**update)
-    await dp.process_update(telegram_update)
-    return {"status": "ok"}
+        # Переход в меню выбора карт
+        await show_card_selection(query)
+        return SELECT_CARDS
 
-# Запуск вебхука
-async def on_startup():
-    await bot.set_webhook(WEBHOOK_URL)
+    elif query.data == "compare_all_cards":
+        await compare_all_cards(query)
+        return COMPARE_CARDS
 
-async def on_shutdown():
-    await bot.delete_webhook()
+    elif query.data == "back_age":
+        await start(update, context)
+        return ASK_AGE
 
-if __name__ == "__main__":
-    uvicorn.run(app, host=WEBAPP_HOST, port=WEBAPP_PORT)
+async def show_card_selection(query):
+    """Меню выбора карт"""
+    user_id = query.from_user.id
+    selected_bank = user_data[user_id]['selected_bank']
+
+    keyboard = []
+    for card_name, data in banks[selected_bank].items():
+        if user_data[user_id]['age'] >= data['age_limit']:
+            text = card_name
+            keyboard.append((text, f"show_card_{card_name}"))
+
+    keyboard.append(("🔙 Назад", "back_bank"))
+
+    await query.edit_message_text(
+        f"🔍 Выбери карту в банке {selected_bank}:",
+        reply_markup=build_keyboard(keyboard)
+    )
+
+async def handle_card_info(update: Update, context: CallbackContext):
+    """Показать информацию о карте и кнопку для оформления"""
+    query = update.callback_query
+    await query.answer()
+
+    user_id = query.from_user.id
+    selected_bank = user_data[user_id]['selected_bank']
+    card_name = query.data.split("_", 2)[2]
+    card = banks[selected_bank][card_name]
+
+    text = f"🏦 <b>{selected_bank}</b> - <b>{card_name}</b>\n\n"
+    text += "🔥 <u>Преимущества:</u>\n- "
