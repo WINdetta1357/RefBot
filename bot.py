@@ -1,12 +1,13 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ConversationHandler, CallbackContext
-import logging
 import os
+import logging
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ConversationHandler, ContextTypes
+
 from dotenv import load_dotenv
 
 # Настройка логгирования
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - %(name)s - %(levelень)s - %(сообщение)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ banks = {
 def build_keyboard(buttons):
     return InlineKeyboardMarkup([[InlineKeyboardButton(text, callback_data=data)] for text, data in buttons])
 
-async def start(update: Update, context: CallbackContext) -> int:
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     keyboard = [
         [("14-17 лет", "age_14_17"), ("18+ лет", "age_18_plus")]
     ]
@@ -57,7 +58,7 @@ async def start(update: Update, context: CallbackContext) -> int:
     )
     return MAIN_MENU
 
-async def handle_age(update: Update, context: CallbackContext) -> int:
+async def handle_age(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
     
@@ -78,7 +79,7 @@ async def show_bank_selection(query) -> int:
     )
     return BANK_SELECTION
 
-async def handle_bank_selection(update: Update, context: CallbackContext) -> int:
+async def handle_bank_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
     
@@ -105,7 +106,7 @@ async def show_card_selection(query, bank_name) -> int:
         reply_markup=build_keyboard(keyboard))
     return CARD_SELECTION
 
-async def handle_card_selection(update: Update, context: CallbackContext) -> int:
+async def handle_card_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
     
@@ -150,7 +151,7 @@ async def show_all_cards_view(query) -> int:
         reply_markup=InlineKeyboardMarkup(keyboard))
     return ALL_CARDS_VIEW
 
-async def handle_navigation(update: Update, context: CallbackContext) -> int:
+async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
     
@@ -172,7 +173,7 @@ async def return_to_main_menu(query) -> int:
         ]))
     return MAIN_MENU
 
-async def cancel(update: Update, context: CallbackContext) -> int:
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("🚫 Сессия завершена")
     return ConversationHandler.END
 
