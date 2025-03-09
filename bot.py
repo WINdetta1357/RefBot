@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 # Настройка логгирования
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - %(name)s - %(levelень)s - %(сообщение)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
@@ -218,6 +218,16 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 def main() -> None:
     application = Application.builder().token(BOT_TOKEN).build()
 
+    async def on_startup(app: Application):
+        # Удаление вебхуков, если они установлены
+        await app.bot.delete_webhook()
+        logger.info("Webhook удален")
+
+    async def on_shutdown(app: Application):
+        # Завершение работы бота
+        await app.shutdown()
+        logger.info("Приложение остановлено")
+
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
@@ -241,7 +251,11 @@ def main() -> None:
     )
 
     application.add_handler(conv_handler)
-    application.run_polling()
+    application.add_error_handler(lambda update, context: logger.error(f"Ошибка: {context.error}"))
+    application.start_polling()
+    application.idle()
 
 if __name__ == "__main__":
     main()
+
+
