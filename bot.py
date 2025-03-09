@@ -54,7 +54,8 @@ def build_keyboard(buttons):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     keyboard = [
         [InlineKeyboardButton("14-17 лет", callback_data="age_14_17")],
-        [InlineKeyboardButton("18+ лет", callback_data="age_18_plus")]
+        [InlineKeyboardButton("18+ лет", callback_data="age_18_plus")],
+        [InlineKeyboardButton("🏠 Главное меню", callback_data="main_menu")]
     ]
     await update.message.reply_text(
         "👋 Добро пожаловать! Выберите ваш возраст:",
@@ -180,7 +181,8 @@ async def return_to_main_menu(query) -> int:
         "🏠 Вы вернулись в главное меню!",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("14-17 лет", callback_data="age_14_17")],
-            [InlineKeyboardButton("18+ лет", callback_data="age_18_plus")]
+            [InlineKeyboardButton("18+ лет", callback_data="age_18_plus")],
+            [InlineKeyboardButton("🏠 Главное меню", callback_data="main_menu")]
         ])
     )
     return MAIN_MENU
@@ -202,7 +204,7 @@ def main() -> None:
             ],
             BANK_SELECTION: [
                 CallbackQueryHandler(handle_bank_selection),
-                CallbackQueryHandler(return_to_main_menu, pattern="^main_menu$")
+                CallbackQueryHandler(handle_navigation, pattern="^main_menu$")
             ],
             CARD_SELECTION: [
                 CallbackQueryHandler(handle_card_selection),
