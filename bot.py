@@ -136,7 +136,7 @@ async def handle_card_selection(update: Update, context: ContextTypes.DEFAULT_TY
     text += f"\n\n🔗 Ссылка: {card_info['ref_link']}"
 
     keyboard = [
-        [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_cards")],
+        [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_banks")],
         [InlineKeyboardButton("🏠 Главное меню", callback_data="main_menu")]
     ]
 
@@ -233,3 +233,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
