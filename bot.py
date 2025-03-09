@@ -206,10 +206,10 @@ def main() -> None:
             ],
             CARD_SELECTION: [
                 CallbackQueryHandler(handle_card_selection),
-                CallbackQueryHandler(handle_navigation)
+                CallbackQueryHandler(handle_navigation, pattern="^main_menu$")
             ],
             ALL_CARDS_VIEW: [
-                CallbackQueryHandler(handle_navigation)
+                CallbackQueryHandler(handle_navigation, pattern="^main_menu$")
             ]
         },
         fallbacks=[CommandHandler("cancel", cancel)],
