@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 # Настройка логгирования
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelень)s - %(сообщение)s',
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def handle_age(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-    
+
     age_group = query.data
     context.user_data["age"] = 14 if age_group == "age_14_17" else 18
     
@@ -74,6 +74,7 @@ async def handle_age(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 # Показ списка банков
 async def show_bank_selection(query) -> int:
+    await query.answer()
     keyboard = [
         [InlineKeyboardButton(bank, callback_data=f"bank_{bank}")] for bank in banks
     ] + [
@@ -90,7 +91,7 @@ async def show_bank_selection(query) -> int:
 async def handle_bank_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-    
+
     if query.data == "show_all_cards":
         return await show_all_cards_view(query)
     
@@ -104,6 +105,7 @@ async def handle_bank_selection(update: Update, context: ContextTypes.DEFAULT_TY
 
 # Показ списка карт выбранного банка
 async def show_card_selection(query, bank_name) -> int:
+    await query.answer()
     cards = banks[bank_name]
     keyboard = [
         [InlineKeyboardButton(card, callback_data=f"card_{card}")] for card in cards
@@ -121,7 +123,10 @@ async def show_card_selection(query, bank_name) -> int:
 async def handle_card_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-    
+
+    if "current_bank" not in context.user_data:
+        return await return_to_main_menu(query)
+
     if query.data == "back_to_banks":
         return await show_bank_selection(query)
     
@@ -149,6 +154,7 @@ async def handle_card_selection(update: Update, context: ContextTypes.DEFAULT_TY
 
 # Показ всех доступных карт
 async def show_all_cards_view(query) -> int:
+    await query.answer()
     text = "📋 Все доступные карты:\n\n"
     for bank, cards in banks.items():
         text += f"🏦 {bank}:\n"
@@ -170,6 +176,9 @@ async def show_all_cards_view(query) -> int:
 async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
+
+    if "current_bank" not in context.user_data:
+        return await return_to_main_menu(query)
     
     if query.data == "main_menu":
         return await return_to_main_menu(query)
@@ -182,6 +191,7 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 # Возврат в главное меню
 async def return_to_main_menu(query) -> int:
+    await query.answer()
     await query.edit_message_text(
         "🏠 Вы вернулись в главное меню!",
         reply_markup=InlineKeyboardMarkup([
@@ -223,7 +233,22 @@ def main() -> None:
     )
     
     application.add_handler(conv_handler)
-    application.run_polling()
 
-if __name__ == "__main__":
-    main()
+    # Установка вебхуков
+    APP_NAME = os.getenv("RAILWAY_PUBLIC_DOMAIN")
+    WEBHOOK_URL = f"https://{APP_NAME}/{BOT_TOKEN}"
+    application.bot.set_webhook(url=WEBHOOK_URL)
+
+    # Создание эндпойнта для вебхуков
+    app = Flask(__name__)
+
+    @app.route(f"/{BOT_TOKEN}", methods=["POST"])
+    async def webhook():
+        json_data = await request.get_json(force=True)
+        update = Update.de_json(json_data, application.bot)
+        await application.update_queue.put(update)
+        return "OK"
+
+    if __name__ == "__main__":
+        from waitress import serve
+        serve(app, host="0.0.0.0", port=int(os.environ.get("PORT
