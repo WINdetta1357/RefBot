@@ -1,5 +1,6 @@
 import logging
 import os
+from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ConversationHandler, ContextTypes
 from dotenv import load_dotenv
@@ -14,6 +15,9 @@ logger = logging.getLogger(__name__)
 # Загрузка токена из переменных окружения
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+# Создание веб-приложения Flask
+app = Flask(__name__)
 
 # Состояния диалога
 MAIN_MENU, BANK_SELECTION, CARD_SELECTION, ALL_CARDS_VIEW = range(4)
@@ -223,7 +227,15 @@ def main() -> None:
     )
     
     application.add_handler(conv_handler)
-    application.run_polling()
 
-if __name__ == "__main__":
-    main()
+    # Установка вебхуков
+    APP_NAME = os.getenv("RAILWAY_PUBLIC_DOMAIN")
+    WEBHOOK_URL = f"https://{APP_NAME}/{BOT_TOKEN}"
+    application.bot.set_webhook(url=WEBHOOK_URL)
+
+    # Создание эндпойнта для вебхуков
+    @app.route(f"/{BOT_TOKEN}", methods=["POST"])
+    async def webhook():
+        json_data = request.get_json(force=True)
+        update = Update.de_json(json_data, application.bot)
+        await application.update
