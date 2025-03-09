@@ -70,7 +70,7 @@ async def handle_age(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await query.answer()
     
     age_group = query.data
-    context.user_data["age"] = 14 if age_group == "age_14_17" else 18
+    context.user_data["age"] = 14 если age_group == "age_14_17" иначе 18
     
     return await show_bank_selection(query)
 
@@ -78,7 +78,7 @@ async def handle_age(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def show_bank_selection(query) -> int:
     await query.answer()
     keyboard = [
-        [InlineKeyboardButton(bank, callback_data=f"bank_{bank}")] for bank in banks
+        [InlineKeyboardButton(bank, callback_data=f"bank_{bank}")] для bank в banks
     ] + [
         [InlineKeyboardButton("📋 Все карты", callback_data="show_all_cards")],
         [InlineKeyboardButton("🏠 Главное меню", callback_data="main_menu")]
@@ -95,10 +95,10 @@ async def handle_bank_selection(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     await query.answer()
     
-    if query.data == "show_all_cards":
+    если query.data == "show_all_cards":
         return await show_all_cards_view(query)
     
-    if query.data == "main_menu":
+    если query.data == "main_menu":
         return await return_to_main_menu(query)
     
     bank_name = query.data.split("_", 1)[1]
@@ -111,7 +111,7 @@ async def show_card_selection(query, bank_name) -> int:
     await query.answer()
     cards = banks[bank_name]
     keyboard = [
-        [InlineKeyboardButton(card, callback_data=f"card_{card}")] for card in cards
+        [InlineKeyboardButton(card, callback_data=f"card_{card}")] для card в cards
     ] + [
         [InlineKeyboardButton("🔙 Назад", callback_data="back_to_banks")],
         [InlineKeyboardButton("🏠 Главное меню", callback_data="main_menu")]
@@ -128,7 +128,7 @@ async def handle_card_selection(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     await query.answer()
     
-    if "current_bank" not in context.user_data:
+    если "current_bank" нет в context.user_data:
         return await return_to_main_menu(query)
     
     card_name = query.data.split("_", 1)[1]
@@ -136,7 +136,7 @@ async def handle_card_selection(update: Update, context: ContextTypes.DEFAULT_TY
     card_info = banks[bank_name][card_name]
     
     text = f"🏦 <b>{bank_name}</b> - <b>{card_name}</b>\n\n"
-    text += "🔥 <b>Преимущества:</b>\n" + "\n".join(f"• {adv}" for adv in card_info["advantages"])
+    text += "🔥 <b>Преимущества:</b>\n" + "\n".join(f"• {adv}" для adv в card_info["advantages"])
     text += f"\n\n🔗 <a href='{card_info['ref_link']}'>Ссылка на карту</a>"
     
     keyboard = [
@@ -152,12 +152,14 @@ async def handle_card_selection(update: Update, context: ContextTypes.DEFAULT_TY
     return CARD_SELECTION
 
 # Показ всех доступных карт
-async def show_all_cards_view(query) -> int:
+async def show_all_cards_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
     await query.answer()
+    
     text = "📋 <b>Все доступные карты:</b>\n\n"
-    for bank, cards in banks.items():
+    для bank, cards в banks.items():
         text += f"🏦 <b>{bank}</b>:\n"
-        for card, info in cards.items():
+        для card, info в cards.items():
             text += f"  • {card} ({info['age_limit']}+)\n"
     
     keyboard = [
@@ -177,27 +179,30 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     query = update.callback_query
     await query.answer()
     
-    if "current_bank" not in context.user_data:
+    если "current_bank" нет в context.user_data:
         return await return_to_main_menu(query)
     
-    if query.data == "main_menu":
+    если query.data == "main_menu":
         return await return_to_main_menu(query)
     
-    if query.data == "back_to_banks":
+    если query.data == "back_to_banks":
         return await show_bank_selection(query)
     
-    if query.data == "back_to_cards":
+    если query.data == "back_to_cards":
         return await show_card_selection(query, context.user_data["current_bank"])
 
 # Возврат в главное меню
-async def return_to_main_menu(query) -> int:
+async def return_to_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
     await query.answer()
+    
+    keyboard = [
+        [InlineKeyboardButton("🎂 14-17 лет", callback_data="age_14_17")],
+        [InlineKeyboardButton("🎂 18+ лет", callback_data="age_18_plus")]
+    ]
     await query.edit_message_text(
         "🏠 <b>Вы вернулись в главное меню!</b>",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("🎂 14-17 лет", callback_data="age_14_17")],
-            [InlineKeyboardButton("🎂 18+ лет", callback_data="age_18_plus")]
-        ]),
+        reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode=ParseMode.HTML
     )
     return MAIN_MENU
@@ -238,4 +243,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
